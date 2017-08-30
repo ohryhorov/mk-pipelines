@@ -33,7 +33,7 @@
  *   OPENSTACK_API_VERSION      Version of the OpenStack API (2/3)
 
  *   SALT_MASTER_CREDENTIALS    Credentials to the Salt API
- *  required for STACK_TYPE=physical
+ *   required for STACK_TYPE=physical
  *   SALT_MASTER_URL            URL of Salt master
 
  * Test settings:
@@ -138,6 +138,7 @@ node("python") {
                     try {
                         envParams.put('cfg_reclass_branch', STACK_RECLASS_BRANCH)
                         envParams.put('cfg_reclass_address', STACK_RECLASS_ADDRESS)
+                        envParams.put('salt_overrides', SALT_OVERRIDES)
                     } catch (MissingPropertyException e) {
                         common.infoMsg("Property STACK_RECLASS_BRANCH or STACK_RECLASS_ADDRESS not found! Using default values from template.")
                     }
