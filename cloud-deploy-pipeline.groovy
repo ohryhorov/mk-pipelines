@@ -139,7 +139,7 @@ node("python") {
                     } catch (MissingPropertyException e) {
                         common.infoMsg("Property SALT_OVERRIDES not found! Using default values from template.")
                     }                    
-                    
+                    echo ("envParams ${envParams}")                     
                     // set reclass repo in heat env
                     try {
                         envParams.put('cfg_reclass_branch', STACK_RECLASS_BRANCH)
