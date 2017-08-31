@@ -134,11 +134,16 @@ node("python") {
                         'cluster_public_net': HEAT_STACK_PUBLIC_NET
                     ]
 
+                    try {
+                        envParams.put('cfg_salt_overrides', SALT_OVERRIDES)
+                    } catch (MissingPropertyException e) {
+                        common.infoMsg("Property SALT_OVERRIDES not found! Using default values from template.")
+                    }                    
+                    
                     // set reclass repo in heat env
                     try {
                         envParams.put('cfg_reclass_branch', STACK_RECLASS_BRANCH)
                         envParams.put('cfg_reclass_address', STACK_RECLASS_ADDRESS)
-                        envParams.put('salt_overrides', SALT_OVERRIDES)
                     } catch (MissingPropertyException e) {
                         common.infoMsg("Property STACK_RECLASS_BRANCH or STACK_RECLASS_ADDRESS not found! Using default values from template.")
                     }
