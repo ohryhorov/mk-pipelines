@@ -134,11 +134,6 @@ node("python") {
                         'cluster_public_net': HEAT_STACK_PUBLIC_NET
                     ]
 
-                    try {
-                        envParams.put('cfg_salt_overrides', SALT_OVERRIDES)
-                    } catch (MissingPropertyException e) {
-                        common.infoMsg("Property SALT_OVERRIDES not found! Using default values from template.")
-                    }                    
                     echo ("envParams ${envParams}")                     
                     // set reclass repo in heat env
                     try {
