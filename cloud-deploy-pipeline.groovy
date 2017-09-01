@@ -146,7 +146,7 @@ node("python") {
                    // Set up override params
                    if (common.validInputParam('SALT_OVERRIDES')) {
                        stage('Set Salt overrides') {
-                           common.initSaltOverrides(SALT_OVERRIDES)   
+                           salt.initSaltOverrides(SALT_OVERRIDES)   
                         }
                    }                    
                     
