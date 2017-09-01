@@ -146,7 +146,7 @@ node("python") {
                    // Set up override params
                    if (common.validInputParam('SALT_OVERRIDES')) {
                        stage('Set Salt overrides') {
-                           openstack.saltOverrides(SALT_OVERRIDES)   
+                           common.saltOverrides(SALT_OVERRIDES)   
                         }
                    }                    
                     
