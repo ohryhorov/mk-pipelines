@@ -146,7 +146,7 @@ node("python") {
                    // Set up override params
                    if (common.validInputParam('SALT_OVERRIDES')) {
                        stage('Set Salt overrides') {
-                           common.saltOverrides(SALT_OVERRIDES)   
+                           common.initSaltOverrides(SALT_OVERRIDES)   
                         }
                    }                    
                     
@@ -230,12 +230,11 @@ node("python") {
         }
 
 
-        if (STACK_TYPE <> 'heat') {
-            // Set up override params
-            if (common.validInputParam('SALT_OVERRIDES')) {
-                stage('Set Salt overrides') {
-                    salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
-                }
+
+        // Set up override params
+        if (common.validInputParam('SALT_OVERRIDES')) {
+            stage('Set Salt overrides') {
+                salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
             }
         }
 
