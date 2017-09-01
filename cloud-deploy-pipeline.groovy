@@ -143,9 +143,12 @@ node("python") {
                         common.infoMsg("Property STACK_RECLASS_BRANCH or STACK_RECLASS_ADDRESS not found! Using default values from template.")
                     }
 
-                    if (SALT_OVERRIDES) {
-                        openstack.saltOverrides(SALT_OVERRIDES)   
-                    }
+                   // Set up override params
+                   if (common.validInputParam('SALT_OVERRIDES')) {
+                       stage('Set Salt overrides') {
+                           openstack.saltOverrides(SALT_OVERRIDES)   
+                        }
+                   }                    
                     
                     openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv)
                 }
