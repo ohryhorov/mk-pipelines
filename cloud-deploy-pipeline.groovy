@@ -232,7 +232,7 @@ node("python") {
 
         
         // Set up override params
-        if (STACK_TYPE <> 'heat') {
+        if (STACK_TYPE != 'heat') {
             if (common.validInputParam('SALT_OVERRIDES')) {
                 stage('Set Salt overrides') {
                     salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
