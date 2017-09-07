@@ -72,7 +72,6 @@ node('python') {
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: true],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES],
-                    [$class: 'StringParameterValue', name: 'SALT_MASTER_CREDENTIALS', value: SALT_MASTER_CREDENTIALS],                    
                     [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
                     [$class: 'StringParameterValue', name: 'STACK_TYPE', value: "physical"],
                     [$class: 'StringParameterValue', name: 'JOB_DEP_NAME', value: "deploy-heat-virtual_mcp11_aio"]
