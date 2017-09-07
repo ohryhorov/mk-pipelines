@@ -82,6 +82,7 @@ node('python') {
                     [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
                     [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                     [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: SALT_MASTER_URL],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
                     [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
                 ])
