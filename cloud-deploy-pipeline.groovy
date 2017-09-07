@@ -105,7 +105,7 @@ node("python") {
                 currentBuild.description = "${STACK_NAME}"
 
                 // get templates
-                git.checkoutGitRepository('template', STACK_TEMPLATE_URL, STACK_TEMPLATE_BRANCH, STACK_TEMPLATE_CREDENTIALS)
+                //git.checkoutGitRepository('template', STACK_TEMPLATE_URL, STACK_TEMPLATE_BRANCH, STACK_TEMPLATE_CREDENTIALS)
 
                 // create openstack env
                 openstack.setupOpenstackVirtualenv(venv, OPENSTACK_API_CLIENT)
@@ -134,15 +134,21 @@ node("python") {
                         'cluster_public_net': HEAT_STACK_PUBLIC_NET
                     ]
 
+                    echo ("envParams ${envParams}")                     
                     // set reclass repo in heat env
                     try {
                         envParams.put('cfg_reclass_branch', STACK_RECLASS_BRANCH)
                         envParams.put('cfg_reclass_address', STACK_RECLASS_ADDRESS)
-                        envParams.put('salt_overrides', SALT_OVERRIDES)
                     } catch (MissingPropertyException e) {
                         common.infoMsg("Property STACK_RECLASS_BRANCH or STACK_RECLASS_ADDRESS not found! Using default values from template.")
                     }
-
+                    
+                    if (common.validInputParam('SALT_OVERRIDES')) {
+                        stage('Pass Salt overrides to heat') {
+                            envParams.put('cfg_salt_overrides', SALT_OVERRIDES)
+                        }
+                    }
+                    
                     openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv)
                 }
 
@@ -223,10 +229,13 @@ node("python") {
         }
 
 
+        
         // Set up override params
-        if (common.validInputParam('SALT_OVERRIDES')) {
-            stage('Set Salt overrides') {
-                salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
+        if (STACK_TYPE != 'heat') {
+            if (common.validInputParam('SALT_OVERRIDES')) {
+                stage('Set Salt overrides') {
+                    salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
+                }
             }
         }
 
