@@ -49,11 +49,32 @@ node('python') {
             testrail = true
         }
 
-        stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
+        
 
-        if (STACK_TYPE == 'heat') {
+        if (STACK_TYPE == 'virtual') {
+            stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
+            stage('Trigger job to deploy virtual environment') {
+                deployBuild = build(job: stack_deploy_job, parameters: [
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
+                    [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
+                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
+                    [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false]
+                ])
+            }
+
+            // get SALT_MASTER_URL
+            deployBuildParams = deployBuild.description.tokenize( ' ' )
+            SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
+            STACK_NAME = "${deployBuildParams[0]}"
+            STACK_TYPE = 'physical'
+            echo "Salt API is accessible via ${SALT_MASTER_URL}"
+
+        }
+
+        //if (STACK_TYPE == 'heat') {
             // Deploy MCP environment
-            stage('Trigger deploy job') {
+            stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
+            stage('Trigger deploy job') {               
                 deployBuild = build(job: stack_deploy_job, parameters: [
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
@@ -64,27 +85,16 @@ node('python') {
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
                 ])
             }
-        } else if (STACK_TYPE == 'virtual') {
-            stage('Trigger job to deploy virtual environment') {
-                deployBuild = build(job: stack_deploy_job, parameters: [
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
-                    [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
-                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
-                    [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: true],
-                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES],
-                    [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
-                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: "physical"],
-                    [$class: 'StringParameterValue', name: 'JOB_DEP_NAME', value: "deploy-heat-virtual_mcp11_aio"]
-                ])
-            }
-
-        }
 
         // get SALT_MASTER_URL
         deployBuildParams = deployBuild.description.tokenize( ' ' )
         SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
         STACK_NAME = "${deployBuildParams[0]}"
         echo "Salt API is accessible via ${SALT_MASTER_URL}"
+
+        //} 
+
+
 
         // Perform smoke tests to fail early
         stage('Run Smoke tests') {
