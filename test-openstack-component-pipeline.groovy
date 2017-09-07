@@ -24,7 +24,7 @@
  *   SALT_OVERRIDES                    Override reclass model parameters
  *   STACK_DELETE                      Whether to cleanup created stack
  *   STACK_TEST_JOB                    Job for launching tests
- *   STACK_TYPE                        Environment type (heat, physical)
+ *   STACK_TYPE                        Environment type (heat, virtual, physical)
  *   STACK_INSTALL                     Which components of the stack to install
  *   TEST_TEMPEST_TARGET               Salt target for tempest tests
  *   TEST_TEMPEST_PATTERN              Tempest tests pattern
@@ -51,17 +51,28 @@ node('python') {
 
         stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
 
-        // Deploy MCP environment
-        stage('Trigger deploy job') {
-            deployBuild = build(job: stack_deploy_job, parameters: [
-                [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
-                [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
-                [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
-                [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
-                [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
-                [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
-                [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
-            ])
+        if (STACK_TYPE == 'heat') {
+            // Deploy MCP environment
+            stage('Trigger deploy job') {
+                deployBuild = build(job: stack_deploy_job, parameters: [
+                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
+                    [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
+                    [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
+                    [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
+                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
+                    [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
+                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
+                ])
+            }
+        } else if (STACK_TYPE == 'virtual') {
+            stage('Trigger job to deploy virtual environment') {
+                deployBuild = build(job: stack_deploy_job, parameters: [
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
+                    [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
+                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true],
+                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
+                ])
+            }
         }
 
         // get SALT_MASTER_URL
