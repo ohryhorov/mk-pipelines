@@ -65,25 +65,19 @@ node('python') {
                 ])
             }
         } else if (STACK_TYPE == 'virtual') {
-            /*stage('Trigger job to deploy virtual environment') {
+            stage('Trigger job to deploy virtual environment') {
                 deployBuild = build(job: stack_deploy_job, parameters: [
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
                     [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
+                    [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: true],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
-                ])
-            }*/
-                deployBuild = build(job: stack_deploy_job, parameters: [
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
-                    [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
+                    [$class: 'StringParameterValue', name: 'SALT_MASTER_CREDENTIALS', value: SALT_MASTER_CREDENTIALS],                    
                     [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
-                    [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
-                    [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
-                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
-                    [$class: 'StringParameterValue', name: 'SALT_MASTER_CREDENTIALS', value: "salt-qa-credentials"],
-                    [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: "http://10.10.0.128:6969"],
-                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: "physical"]
-                ])            
+                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: "physical"],
+                    [$class: 'StringParameterValue', name: 'JOB_DEP_NAME', value: "deploy-heat-virtual_mcp11_aio"]
+                ])
+            }
 
         }
 
