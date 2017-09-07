@@ -61,7 +61,7 @@ node('python') {
             } */
 
             // get SALT_MASTER_URL
-            deployBuildParams = deployBuild.description.tokenize( ' ' )
+            //deployBuildParams = deployBuild.description.tokenize( ' ' )
             //SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
             SALT_MASTER_URL = "http://10.10.0.128:6969"            
             //STACK_NAME = "${deployBuildParams[0]}" 
