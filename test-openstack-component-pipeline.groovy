@@ -69,7 +69,7 @@ node('python') {
                 deployBuild = build(job: stack_deploy_job, parameters: [
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
                     [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
-                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true],
+                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
                 ])
             }
