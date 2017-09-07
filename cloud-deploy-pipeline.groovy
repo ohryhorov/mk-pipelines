@@ -33,7 +33,7 @@
  *   OPENSTACK_API_VERSION      Version of the OpenStack API (2/3)
 
  *   SALT_MASTER_CREDENTIALS    Credentials to the Salt API
- *   required for STACK_TYPE=physical
+ *  required for STACK_TYPE=physical
  *   SALT_MASTER_URL            URL of Salt master
 
  * Test settings:
@@ -64,14 +64,18 @@ overwriteFile = "/srv/salt/reclass/classes/cluster/override.yml"
 // Define global variables
 def saltMaster
 def venv
+def outputs = [:]
 
 def ipRegex = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"
 
 if (STACK_TYPE == 'aws') {
     def aws_env_vars
+} else if (STACK_TYPE == 'heat') {
+    def envParams
+    def openstackCloud
 }
 
-node("python") {
+node("${SLAVE_NODE}") {
     try {
         // Set build-specific variables
         venv = "${env.WORKSPACE}/venv"
@@ -81,9 +85,14 @@ node("python") {
         //
         stage ('Create infrastructure') {
 
+            outputs.put('stack_type', STACK_TYPE)
+
             if (STACK_TYPE == 'heat') {
                 // value defaults
-                def openstackCloud
+                envParams = [
+                    'cluster_zone': HEAT_STACK_ZONE,
+                    'cluster_public_net': HEAT_STACK_PUBLIC_NET
+                ]
 
                 if (STACK_REUSE.toBoolean() == true && STACK_NAME == '') {
                     error("If you want to reuse existing stack you need to provide it's name")
@@ -101,11 +110,14 @@ node("python") {
                     }
                 }
 
+                // no underscore in STACK_NAME
+                STACK_NAME = STACK_NAME.replaceAll('_', '-')
+
                 // set description
                 currentBuild.description = "${STACK_NAME}"
 
                 // get templates
-                //git.checkoutGitRepository('template', STACK_TEMPLATE_URL, STACK_TEMPLATE_BRANCH, STACK_TEMPLATE_CREDENTIALS)
+                git.checkoutGitRepository('template', STACK_TEMPLATE_URL, STACK_TEMPLATE_BRANCH, STACK_TEMPLATE_CREDENTIALS)
 
                 // create openstack env
                 openstack.setupOpenstackVirtualenv(venv, OPENSTACK_API_CLIENT)
@@ -115,13 +127,14 @@ node("python") {
                     OPENSTACK_API_PROJECT_ID, OPENSTACK_API_USER_DOMAIN,
                     OPENSTACK_API_VERSION)
                 openstack.getKeystoneToken(openstackCloud, venv)
+
                 //
                 // Verify possibility of create stack for given user and stack type
                 //
                 wrap([$class: 'BuildUser']) {
                     if (env.BUILD_USER_ID && !env.BUILD_USER_ID.equals("jenkins") && !STACK_REUSE.toBoolean()) {
                         def existingStacks = openstack.getStacksForNameContains(openstackCloud, "${env.BUILD_USER_ID}-${JOB_NAME}", venv)
-                        if(existingStacks.size() >= _MAX_PERMITTED_STACKS){
+                        if (existingStacks.size() >= _MAX_PERMITTED_STACKS) {
                             STACK_DELETE = "false"
                             throw new Exception("You cannot create new stack, you already have ${_MAX_PERMITTED_STACKS} stacks of this type (${JOB_NAME}). \nStack names: ${existingStacks}")
                         }
@@ -129,12 +142,7 @@ node("python") {
                 }
                 // launch stack
                 if (STACK_REUSE.toBoolean() == false) {
-                    envParams = [
-                        'cluster_zone': HEAT_STACK_ZONE,
-                        'cluster_public_net': HEAT_STACK_PUBLIC_NET
-                    ]
 
-                    echo ("envParams ${envParams}")                     
                     // set reclass repo in heat env
                     try {
                         envParams.put('cfg_reclass_branch', STACK_RECLASS_BRANCH)
@@ -142,13 +150,7 @@ node("python") {
                     } catch (MissingPropertyException e) {
                         common.infoMsg("Property STACK_RECLASS_BRANCH or STACK_RECLASS_ADDRESS not found! Using default values from template.")
                     }
-                    
-                    if (common.validInputParam('SALT_OVERRIDES')) {
-                        stage('Pass Salt overrides to heat') {
-                            envParams.put('cfg_salt_overrides', SALT_OVERRIDES)
-                        }
-                    }
-                    
+
                     openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv)
                 }
 
@@ -211,6 +213,7 @@ node("python") {
 
                 // get outputs
                 saltMasterHost = aws.getOutputs(venv, aws_env_vars, STACK_NAME, 'SaltMasterIP')
+
                 // check that saltMasterHost is valid
                 if (!saltMasterHost || !saltMasterHost.matches(ipRegex)) {
                     common.errorMsg("saltMasterHost is not a valid ip, value is: ${saltMasterHost}")
@@ -224,18 +227,17 @@ node("python") {
                 throw new Exception("STACK_TYPE ${STACK_TYPE} is not supported")
             }
 
+            outputs.put('salt_api', SALT_MASTER_URL)
+
             // Connect to Salt master
             saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
         }
 
 
-        
         // Set up override params
-        if (STACK_TYPE != 'heat') {
-            if (common.validInputParam('SALT_OVERRIDES')) {
-                stage('Set Salt overrides') {
-                    salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
-                }
+        if (common.validInputParam('SALT_OVERRIDES')) {
+            stage('Set Salt overrides') {
+                salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
             }
         }
 
@@ -278,9 +280,12 @@ node("python") {
             stage('Install Kubernetes infra') {
                 if (STACK_TYPE == 'aws') {
                     // configure kubernetes_control_address - save loadbalancer
-                    def kubernetes_control_address = aws.getOutputs(venv, aws_env_vars, STACK_NAME, 'ControlLoadBalancer')
-                    print(kubernetes_control_address)
-                    salt.runSaltProcessStep(saltMaster, 'I@salt:master', 'reclass.cluster_meta_set', ['kubernetes_control_address', kubernetes_control_address], null, true)
+                    def awsOutputs = aws.getOutputs(venv, aws_env_vars, STACK_NAME)
+                    common.prettyPrint(awsOutputs)
+                    if (awsOutputs.containsKey('ControlLoadBalancer')) {
+                        salt.runSaltProcessStep(saltMaster, 'I@salt:master', 'reclass.cluster_meta_set', ['kubernetes_control_address', awsOutputs['ControlLoadBalancer']], null, true)
+                        outputs.put('kubernetes_apiserver', 'https://' + awsOutputs['ControlLoadBalancer'])
+                    }
                 }
 
                 // ensure certificates are generated properly
@@ -298,8 +303,11 @@ node("python") {
             }
 
             stage('Install Kubernetes control') {
-
                 orchestrate.installKubernetesControl(saltMaster)
+
+                // collect artifacts (kubeconfig)
+                writeFile(file: 'kubeconfig', text: salt.getFileContent(saltMaster, 'I@kubernetes:master and *01*', '/etc/kubernetes/admin-kube-config'))
+                archiveArtifacts(artifacts: 'kubeconfig')
             }
 
             stage('Scale Kubernetes computes') {
@@ -313,6 +321,12 @@ node("python") {
 
                         // wait for computes to boot up
                         aws.waitForAutoscalingInstances(venv, aws_env_vars, scaling_group)
+                        sleep(60)
+
+                    } else if (STACK_TYPE == 'heat') {
+                        envParams.put('cluster_node_count', STACK_COMPUTE_COUNT)
+
+                        openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv, "update")
                         sleep(60)
                     }
 
@@ -362,6 +376,12 @@ node("python") {
 
         }
 
+        if (common.checkContains('STACK_INSTALL', 'cicd')) {
+            stage('Install Cicd') {
+                orchestrate.installDockerSwarm(saltMaster)
+                orchestrate.installCicd(saltMaster)
+            }
+        }
 
         if (common.checkContains('STACK_INSTALL', 'sl-legacy')) {
             stage('Install StackLight v1') {
@@ -430,10 +450,15 @@ node("python") {
         }
 
 
-        if (common.checkContains('STACK_INSTALL', 'finalize')) {
-            stage('Finalize') {
+        stage('Finalize') {
+            if (common.checkContains('STACK_INSTALL', 'finalize')) {
                 salt.runSaltProcessStep(saltMaster, '*', 'state.apply', [], null, true)
             }
+
+            outputsPretty = common.prettify(outputs)
+            print(outputsPretty)
+            writeFile(file: 'outputs.json', text: outputsPretty)
+            archiveArtifacts(artifacts: 'outputs.json')
         }
 
     } catch (Throwable e) {
