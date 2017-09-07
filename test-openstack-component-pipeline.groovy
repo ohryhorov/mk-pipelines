@@ -49,23 +49,23 @@ node('python') {
             testrail = true
         }
 
-        
-
-        if (STACK_TYPE == 'virtual') {
-            stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
+                if (STACK_TYPE == 'virtual') {
+            /*stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
             stage('Trigger job to deploy virtual environment') {
                 deployBuild = build(job: stack_deploy_job, parameters: [
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
                     [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false]
-                ])
-            }
+                ]) 
+            } */
 
             // get SALT_MASTER_URL
             deployBuildParams = deployBuild.description.tokenize( ' ' )
-            SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
-            STACK_NAME = "${deployBuildParams[0]}"
+            //SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
+            SALT_MASTER_URL = "http://10.10.0.128:6969"            
+            //STACK_NAME = "${deployBuildParams[0]}" 
+            //STACK_NAME = "kvm-node-1504792430110"            
             STACK_TYPE = 'physical'
             echo "Salt API is accessible via ${SALT_MASTER_URL}"
 
@@ -73,7 +73,7 @@ node('python') {
 
         //if (STACK_TYPE == 'heat') {
             // Deploy MCP environment
-            stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
+            stack_deploy_job = "deploy-heat-${TEST_MODEL}"
             stage('Trigger deploy job') {               
                 deployBuild = build(job: stack_deploy_job, parameters: [
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
