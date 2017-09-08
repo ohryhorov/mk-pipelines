@@ -56,6 +56,7 @@ node('python') {
                         [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
                         [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
                         [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
+                        [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: true],
                         [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false]
                     ]) 
                 }
@@ -67,6 +68,7 @@ node('python') {
             STACK_NAME = "${deployBuildParams[0]}" 
             STACK_TYPE = 'physical'
             echo "Salt API is accessible via ${SALT_MASTER_URL}"
+            STACK_CLEANUP_JOB = "deploy-${STACK_TYPE}-${TEST_MODEL}"
 
         }
 
@@ -146,7 +148,8 @@ node('python') {
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_CLIENT', value: OPENSTACK_API_CLIENT],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION],
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],                    
-                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true]
+                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true],
+                    [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: false]
                 ])
             }
         } 
