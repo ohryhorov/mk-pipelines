@@ -86,13 +86,13 @@ node('python') {
                 [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
             ])
         }
-
+        if (STACK_TYPE == 'heat') {
         // get SALT_MASTER_URL
-        deployBuildParams = deployBuild.description.tokenize( ' ' )
-        SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
-        STACK_NAME = "${deployBuildParams[0]}"
-        echo "Salt API is accessible via ${SALT_MASTER_URL}"
-
+            deployBuildParams = deployBuild.description.tokenize( ' ' )
+            SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
+            STACK_NAME = "${deployBuildParams[0]}"
+            echo "Salt API is accessible via ${SALT_MASTER_URL}"
+        }
         //} 
 
 
