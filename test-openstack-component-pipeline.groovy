@@ -49,23 +49,22 @@ node('python') {
             testrail = true
         }
 
-                if (STACK_TYPE == 'virtual') {
-            /*stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
-            stage('Trigger job to deploy virtual environment') {
-                deployBuild = build(job: stack_deploy_job, parameters: [
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
-                    [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
-                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
-                    [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false]
-                ]) 
-            } */
+        if (STACK_TYPE == 'virtual') {
+            stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
+                stage('Trigger job to deploy virtual environment') {
+                    deployBuild = build(job: stack_deploy_job, parameters: [
+                        [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
+                        [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
+                        [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
+                        [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false]
+                    ]) 
+                }
 
             // get SALT_MASTER_URL
-            //deployBuildParams = deployBuild.description.tokenize( ' ' )
-            //SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
-            SALT_MASTER_URL = "http://10.10.0.128:6969"            
-            //STACK_NAME = "${deployBuildParams[0]}" 
-            //STACK_NAME = "kvm-node-1504792430110"            
+            deployBuildParams = deployBuild.description.tokenize( ' ' )
+            SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
+            //SALT_MASTER_URL = "http://10.10.0.128:6969"            
+            STACK_NAME = "${deployBuildParams[0]}" 
             STACK_TYPE = 'physical'
             echo "Salt API is accessible via ${SALT_MASTER_URL}"
 
@@ -73,20 +72,20 @@ node('python') {
 
         //if (STACK_TYPE == 'heat') {
             // Deploy MCP environment
-            stack_deploy_job = "deploy-heat-${TEST_MODEL}"
-            stage('Trigger deploy job') {               
-                deployBuild = build(job: stack_deploy_job, parameters: [
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
-                    [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
-                    [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
-                    [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
-                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
-                    [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: SALT_MASTER_URL],
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
-                    [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
-                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
-                ])
-            }
+        stack_deploy_job = "deploy-heat-${TEST_MODEL}"
+        stage('Trigger deploy job') {               
+            deployBuild = build(job: stack_deploy_job, parameters: [
+                [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
+                [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
+                [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
+                [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
+                [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
+                [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: SALT_MASTER_URL],
+                [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
+                [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
+                [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: SALT_OVERRIDES]
+            ])
+        }
 
         // get SALT_MASTER_URL
         deployBuildParams = deployBuild.description.tokenize( ' ' )
@@ -107,6 +106,7 @@ node('python') {
                 [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: false],
                 [$class: 'StringParameterValue', name: 'OPENSTACK_COMPONENT', value: 'smoke'],
                 [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: '0'],
+                [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
                 [$class: 'BooleanParameterValue', name: 'FAIL_ON_TESTS', value: true]
             ])
         }
@@ -123,6 +123,7 @@ node('python') {
                 [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: testrail.toBoolean()],
                 [$class: 'StringParameterValue', name: 'OPENSTACK_COMPONENT', value: OPENSTACK_COMPONENT],
                 [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: TEST_PASS_THRESHOLD],
+                [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
                 [$class: 'BooleanParameterValue', name: 'FAIL_ON_TESTS', value: true]
             ])
         }
