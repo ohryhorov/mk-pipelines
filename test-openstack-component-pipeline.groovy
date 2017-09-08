@@ -70,9 +70,8 @@ node('python') {
 
         }
 
-        //if (STACK_TYPE == 'heat') {
-            // Deploy MCP environment
-        stack_deploy_job = "deploy-heat-${TEST_MODEL}"
+        // Deploy MCP environment
+        stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
         stage('Trigger deploy job') {               
             deployBuild = build(job: stack_deploy_job, parameters: [
                 [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
@@ -93,9 +92,6 @@ node('python') {
             STACK_NAME = "${deployBuildParams[0]}"
             echo "Salt API is accessible via ${SALT_MASTER_URL}"
         }
-        //} 
-
-
 
         // Perform smoke tests to fail early
         stage('Run Smoke tests') {
@@ -148,9 +144,11 @@ node('python') {
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_ID', value: OPENSTACK_API_PROJECT_ID],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_USER_DOMAIN', value: OPENSTACK_API_USER_DOMAIN],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_CLIENT', value: OPENSTACK_API_CLIENT],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION]
+                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],                    
+                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true]
                 ])
             }
-        }
+        } 
     }
 }
