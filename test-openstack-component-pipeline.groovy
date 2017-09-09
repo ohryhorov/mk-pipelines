@@ -66,9 +66,9 @@ node('python') {
             SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
             //SALT_MASTER_URL = "http://10.10.0.128:6969"            
             STACK_NAME = "${deployBuildParams[0]}" 
+            STACK_CLEANUP_JOB = "cleanup-${STACK_TYPE}-${TEST_MODEL}"
             STACK_TYPE = 'physical'
             echo "Salt API is accessible via ${SALT_MASTER_URL}"
-            STACK_CLEANUP_JOB = "cleanup-${STACK_TYPE}-${TEST_MODEL}"
         }
 
         // Deploy MCP environment
