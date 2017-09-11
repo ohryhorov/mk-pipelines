@@ -54,7 +54,7 @@ node('python') {
                 stage('Trigger job to deploy virtual environment') {
                     deployBuild = build(job: stack_deploy_job, parameters: [
                         [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
-                        [$class: 'StringParameterValue', name: 'ENV_NAME', value: ENV_NAME],
+                        [$class: 'StringParameterValue', name: 'STACK_NAME', value: ENV_NAME],
                         [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                         [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: true],
                         [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false]
@@ -64,9 +64,9 @@ node('python') {
             // get SALT_MASTER_URL
             deployBuildParams = deployBuild.description.tokenize( ' ' )
             SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
-            //SALT_MASTER_URL = "http://10.10.0.128:6969"            
             STACK_NAME = "${deployBuildParams[0]}" 
             STACK_CLEANUP_JOB = "cleanup-${STACK_TYPE}-${TEST_MODEL}"
+            // Changing STACK_TYPE to deploy openstack by upstream cloud-deploy-pipeline
             STACK_TYPE = 'physical'
             echo "Salt API is accessible via ${SALT_MASTER_URL}"
         }
@@ -87,7 +87,7 @@ node('python') {
             ])
         }
         if (STACK_TYPE == 'heat') {
-        // get SALT_MASTER_URL
+            // get SALT_MASTER_URL
             deployBuildParams = deployBuild.description.tokenize( ' ' )
             SALT_MASTER_URL = "http://${deployBuildParams[1]}:6969"
             STACK_NAME = "${deployBuildParams[0]}"
