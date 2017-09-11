@@ -229,6 +229,7 @@ node("${SLAVE_NODE}") {
 
             outputs.put('salt_api', SALT_MASTER_URL)
 
+            salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
             // Connect to Salt master
             saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
         }
