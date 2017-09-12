@@ -231,6 +231,8 @@ node("${SLAVE_NODE}") {
 
             openstack.setupOpenstackVirtualenv(venv, OPENSTACK_API_CLIENT)
 
+// TODO: XXX
+
             salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
             // Connect to Salt master
             saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
@@ -240,7 +242,7 @@ node("${SLAVE_NODE}") {
         // Set up override params
         if (common.validInputParam('SALT_OVERRIDES')) {
             stage('Set Salt overrides') {
-                salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
+                salt.setSaltOverrides_(saltMaster,  SALT_OVERRIDES)
             }
         }
 
@@ -373,7 +375,7 @@ node("${SLAVE_NODE}") {
                 orchestrate.installOpenstackCompute_(saltMaster)
 
                 if (common.checkContains('STACK_INSTALL', 'contrail')) {
-                    orchestrate.installContrailCompute_(saltMaster)
+                    orchestrate.installContrailCompute_Ззгыр(saltMaster)
                 }
             }
 
