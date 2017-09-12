@@ -250,7 +250,7 @@ node("${SLAVE_NODE}") {
 
         if (common.checkContains('STACK_INSTALL', 'core')) {
             stage('Install core infrastructure') {
-                orchestrate.installFoundationInfra(saltMaster)
+                orchestrate.installFoundationInfra_(saltMaster)
 
                 if (common.checkContains('STACK_INSTALL', 'kvm')) {
                     orchestrate.installInfraKvm(saltMaster)
