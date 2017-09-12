@@ -257,7 +257,7 @@ node("${SLAVE_NODE}") {
                     orchestrate.installFoundationInfra(saltMaster)
                 }
 
-                orchestrate.validateFoundationInfra(saltMaster)
+                orchestrate.validateFoundationInfra_(saltMaster)
             }
         }
 
@@ -343,11 +343,11 @@ node("${SLAVE_NODE}") {
             // install Infra and control, tests, ...
 
             stage('Install OpenStack infra') {
-                orchestrate.installOpenstackInfra(saltMaster)
+                orchestrate.installOpenstackInfra_(saltMaster)
             }
 
             stage('Install OpenStack control') {
-                orchestrate.installOpenstackControl(saltMaster)
+                orchestrate.installOpenstackControl_(saltMaster)
             }
 
             stage('Install OpenStack network') {
@@ -355,25 +355,25 @@ node("${SLAVE_NODE}") {
                 if (common.checkContains('STACK_INSTALL', 'contrail')) {
                     orchestrate.installContrailNetwork(saltMaster)
                 } else if (common.checkContains('STACK_INSTALL', 'ovs')) {
-                    orchestrate.installOpenstackNetwork(saltMaster)
+                    orchestrate.installOpenstackNetwork_(saltMaster)
                 }
 
-                salt.runSaltProcessStep(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; neutron net-list'])
-                salt.runSaltProcessStep(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; nova net-list'])
+                salt.runSaltProcessStep_(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; neutron net-list'])
+                salt.runSaltProcessStep_(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; nova net-list'])
             }
 
-            if (salt.testTarget(saltMaster, 'I@ironic:conductor')){
+            if (salt.testTarget_(saltMaster, 'I@ironic:conductor')){
                 stage('Install OpenStack Ironic conductor') {
-                    orchestrate.installIronicConductor(saltMaster)
+                    orchestrate.installIronicConductor_(saltMaster)
                 }
             }
 
 
             stage('Install OpenStack compute') {
-                orchestrate.installOpenstackCompute(saltMaster)
+                orchestrate.installOpenstackCompute_(saltMaster)
 
                 if (common.checkContains('STACK_INSTALL', 'contrail')) {
-                    orchestrate.installContrailCompute(saltMaster)
+                    orchestrate.installContrailCompute_(saltMaster)
                 }
             }
 
