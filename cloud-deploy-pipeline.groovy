@@ -231,7 +231,7 @@ node("${SLAVE_NODE}") {
 
             salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
             // Connect to Salt master
-            saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
+            saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS, true)
         }
 
 
