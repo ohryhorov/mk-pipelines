@@ -229,9 +229,14 @@ node("${SLAVE_NODE}") {
 
             outputs.put('salt_api', SALT_MASTER_URL)
 
-            salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
+            def SALT_PEPPER = true
+
+            if (SALT_PEPPER) {
+                salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
+                openstack.setupOpenstackVirtualenv(venv, OPENSTACK_API_CLIENT)
+            }
             // Connect to Salt master
-            saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
+            saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS, SALT_PEPPER)
         }
 
 
