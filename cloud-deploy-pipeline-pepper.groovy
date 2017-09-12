@@ -235,14 +235,14 @@ node("${SLAVE_NODE}") {
 
             salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
             // Connect to Salt master
-            saltMaster = salt.connection_(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS, true)
+            saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS, true)
         }
 
 
         // Set up override params
         if (common.validInputParam('SALT_OVERRIDES')) {
             stage('Set Salt overrides') {
-                salt.setSaltOverrides_(saltMaster,  SALT_OVERRIDES)
+                salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
             }
         }
 
@@ -252,14 +252,14 @@ node("${SLAVE_NODE}") {
 
         if (common.checkContains('STACK_INSTALL', 'core')) {
             stage('Install core infrastructure') {
-                orchestrate.installFoundationInfra_(saltMaster)
+                orchestrate.installFoundationInfra(saltMaster)
 
                 if (common.checkContains('STACK_INSTALL', 'kvm')) {
                     orchestrate.installInfraKvm(saltMaster)
                     orchestrate.installFoundationInfra(saltMaster)
                 }
 
-                orchestrate.validateFoundationInfra_(saltMaster)
+                orchestrate.validateFoundationInfra(saltMaster)
             }
         }
 
@@ -345,11 +345,11 @@ node("${SLAVE_NODE}") {
             // install Infra and control, tests, ...
 
             stage('Install OpenStack infra') {
-                orchestrate.installOpenstackInfra_(saltMaster)
+                orchestrate.installOpenstackInfra(saltMaster)
             }
 
             stage('Install OpenStack control') {
-                orchestrate.installOpenstackControl_(saltMaster)
+                orchestrate.installOpenstackControl(saltMaster)
             }
 
             stage('Install OpenStack network') {
@@ -360,22 +360,22 @@ node("${SLAVE_NODE}") {
                     orchestrate.installOpenstackNetwork_(saltMaster)
                 }
 
-                salt.runSaltProcessStep_(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; neutron net-list'])
-                salt.runSaltProcessStep_(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; nova net-list'])
+                salt.runSaltProcessStep(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; neutron net-list'])
+                salt.runSaltProcessStep(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; nova net-list'])
             }
 
-            if (salt.testTarget_(saltMaster, 'I@ironic:conductor')){
+            if (salt.testTarget(saltMaster, 'I@ironic:conductor')){
                 stage('Install OpenStack Ironic conductor') {
-                    orchestrate.installIronicConductor_(saltMaster)
+                    orchestrate.installIronicConductor(saltMaster)
                 }
             }
 
 
             stage('Install OpenStack compute') {
-                orchestrate.installOpenstackCompute_(saltMaster)
+                orchestrate.installOpenstackCompute(saltMaster)
 
                 if (common.checkContains('STACK_INSTALL', 'contrail')) {
-                    orchestrate.installContrailCompute_Ззгыр(saltMaster)
+                    orchestrate.installContrailCompute(saltMaster)
                 }
             }
 
