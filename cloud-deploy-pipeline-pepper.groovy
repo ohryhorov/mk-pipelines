@@ -233,9 +233,15 @@ node("${SLAVE_NODE}") {
 
 // TODO: XXX
 
-            salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
-            // Connect to Salt master
-            saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS, true)
+               def SALT_PEPPER = true 
+                                                                                                                                                                                                                                             
+               if (SALT_PEPPER) {
+                   salt.createPepperEnv(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
+                   openstack.setupOpenstackVirtualenv(venv, OPENSTACK_API_CLIENT)
+                }
+                
+                // Connect to Salt master 
+            saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS, SALT_PEPPER)
         }
 
 
@@ -357,7 +363,7 @@ node("${SLAVE_NODE}") {
                 if (common.checkContains('STACK_INSTALL', 'contrail')) {
                     orchestrate.installContrailNetwork(saltMaster)
                 } else if (common.checkContains('STACK_INSTALL', 'ovs')) {
-                    orchestrate.installOpenstackNetwork_(saltMaster)
+                    orchestrate.installOpenstackNetwork(saltMaster)
                 }
 
                 salt.runSaltProcessStep(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; neutron net-list'])
