@@ -57,6 +57,7 @@ aws = new com.mirantis.mk.Aws()
 orchestrate = new com.mirantis.mk.Orchestrate()
 salt = new com.mirantis.mk.Salt()
 test = new com.mirantis.mk.Test()
+python = new com.mirantis.mk.Python()
 
 _MAX_PERMITTED_STACKS = 2
 overwriteFile = "/srv/salt/reclass/classes/cluster/override.yml"
