@@ -46,7 +46,7 @@ node("${SLAVE_NODE}") {
     def project = PROJECT
     def pkgReviewNameSpace
     def extra_repo = EXTRA_REPO
-    def testrail = true
+    def testrail = false
     def test_milestone = ''
     def test_tempest_pattern = TEST_TEMPEST_PATTERN
     def stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
