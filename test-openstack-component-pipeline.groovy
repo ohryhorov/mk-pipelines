@@ -100,17 +100,30 @@ node("${SLAVE_NODE}") {
             common.infoMsg("Next salt model parameters will be overriden:\n${salt_overrides_list.join('\n')}")
         }
 
-        // Deploy MCP environment
-        stage('Trigger deploy job') {
-            deployBuild = build(job: stack_deploy_job, parameters: [
-                [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
-                [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
-                [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
-                [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
-                [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
-                [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
-                [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
-            ])
+        if (STACK_TYPE == 'kvm') {
+            // Deploy MCP environment
+            stage('Trigger deploy job') {
+                deployBuild = build(job: 'deploy-kvm-virtual_mcp11_aio', parameters: [
+                    [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: true],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
+                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
+                    [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: true],
+                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
+                ])
+            }
+        } else {
+            // Deploy MCP environment
+            stage('Trigger deploy job') {
+                deployBuild = build(job: stack_deploy_job, parameters: [
+                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
+                    [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
+                    [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
+                    [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
+                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
+                    [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
+                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
+                ])
+            }
         }
 
         // get salt master url
