@@ -101,13 +101,28 @@ node("${SLAVE_NODE}") {
         }
 
         if (STACK_TYPE == 'kvm') {
-            // Deploy MCP environment
+            // Deploy KVM environment
             stage('Trigger deploy job') {
                 deployBuild = build(job: 'deploy-kvm-virtual_mcp11_aio', parameters: [
-                    [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: true],
+                    [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                     [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: true],
+                    [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
+                ])
+            }
+            salt_master_url = "http://${deployBuildParams[1]}:6969"
+            // Deploy MCP environment
+            stage('Trigger deploy job') {
+                deployBuild = build(job: 'deploy-physical-virtual_mcp11_aio', parameters: [
+                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
+                    [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
+                    [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
+                    [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
+                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: 'physical'],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
+                    [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: salt_master_url],
+                    [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
             }
