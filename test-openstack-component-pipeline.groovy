@@ -102,7 +102,7 @@ node("${SLAVE_NODE}") {
 
         if (STACK_TYPE == 'kvm') {
             // Deploy KVM environment
-            stage('Trigger deploy job') {
+            stage('Trigger deploy KVM job') {
                 deployBuild = build(job: 'deploy-kvm-virtual_mcp11_aio', parameters: [
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
@@ -111,9 +111,11 @@ node("${SLAVE_NODE}") {
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
             }
+            deployBuildParams = deployBuild.description.tokenize( ' ' )
             salt_master_url = "http://${deployBuildParams[1]}:6969"
+            stack_name = "${deployBuildParams[0]}"
             // Deploy MCP environment
-            stage('Trigger deploy job') {
+            stage('Trigger deploy MCP job') {
                 deployBuild = build(job: 'deploy-physical-virtual_mcp11_aio', parameters: [
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
@@ -139,12 +141,12 @@ node("${SLAVE_NODE}") {
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
             }
+            // get salt master url
+            deployBuildParams = deployBuild.description.tokenize( ' ' )
+            salt_master_url = "http://${deployBuildParams[1]}:6969"
+            stack_name = "${deployBuildParams[0]}"
         }
 
-        // get salt master url
-        deployBuildParams = deployBuild.description.tokenize( ' ' )
-        salt_master_url = "http://${deployBuildParams[1]}:6969"
-        stack_name = "${deployBuildParams[0]}"
         common.infoMsg("Salt API is accessible via ${salt_master_url}")
 
         // Perform smoke tests to fail early
