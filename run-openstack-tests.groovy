@@ -38,7 +38,7 @@ python = new com.mirantis.mk.Python()
 def saltMaster
 def SLAVE_NODE
 
-if ( STACK_TYPE <> 'heat' ) {
+if ( STACK_TYPE != 'heat' ) {
     SLAVE_NODE = 'oscore-testing'
 } else {
     SLAVE_NODE = 'python'
