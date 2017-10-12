@@ -76,6 +76,10 @@ if (STACK_TYPE == 'aws') {
     def openstackCloud
 }
 
+if (!common.validInputParam('SLAVE_NODE')) {
+    SLAVE_NODE = 'python'
+} 
+
 node("${SLAVE_NODE}") {
     try {
         // Set build-specific variables

@@ -24,7 +24,7 @@
  *   PROC_RESULTS_JOB             Name of job for test results processing
  *   FAIL_ON_TESTS                Whether to fail build on tests failures or not
  *   TEST_PASS_THRESHOLD          Persent of passed tests to consider build successful
- *   SLAVE_NODE                   Label of a jenkins node where the job will be run 
+ *   STACK_TYPE
  *
  */
 
@@ -36,8 +36,11 @@ python = new com.mirantis.mk.Python()
 
 // Define global variables
 def saltMaster
+def SLAVE_NODE
 
-if (common.validInputParam('SLAVE_NODE')) {
+if ( STACK_TYPE <> 'heat' ) {
+    SLAVE_NODE = 'oscore-testing'
+} else {
     SLAVE_NODE = 'python'
 }
 
