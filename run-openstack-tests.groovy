@@ -37,7 +37,7 @@ python = new com.mirantis.mk.Python()
 // Define global variables
 def saltMaster
 
-if (common.validInputParam('TESTRAIL') {
+if (common.validInputParam('SLAVE_NODE')) {
     SLAVE_NODE = 'python'
 }
 
