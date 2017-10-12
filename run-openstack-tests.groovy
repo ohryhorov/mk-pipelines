@@ -24,7 +24,7 @@
  *   PROC_RESULTS_JOB             Name of job for test results processing
  *   FAIL_ON_TESTS                Whether to fail build on tests failures or not
  *   TEST_PASS_THRESHOLD          Persent of passed tests to consider build successful
- *   STACK_TYPE
+ *   STACK_TYPE                   Environment type (heat, physical, kvm)
  *
  */
 
