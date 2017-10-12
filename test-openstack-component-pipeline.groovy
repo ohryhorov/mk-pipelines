@@ -42,7 +42,7 @@ def artifactoryUrl = artifactoryServer.getUrl()
 def salt_overrides_list = SALT_OVERRIDES.tokenize('\n')
 def SLAVE_NODE = 'python'
 
-if ( STACK_TYPE <> 'heat' ) {
+if (STACK_TYPE != 'heat') {
     SLAVE_NODE = 'oscore-testing'
 }
 
