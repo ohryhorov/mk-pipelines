@@ -12,6 +12,7 @@
  *   EXTRA_REPO_PIN                    Pin string for extra repo - eg "origin hostname.local"
  *   EXTRA_REPO_PRIORITY               Repo priority
  *   FAIL_ON_TESTS                     Whether to fail build on tests failures or not
+ *   FORMULA_PKG_REVISION              Formulas release to deploy with (stable, testing or nightly)
  *   HEAT_STACK_ZONE                   VM availability zone
  *   OPENSTACK_VERSION                 Version of Openstack being tested
  *   OPENSTACK_API_URL                 OpenStack API address
@@ -33,27 +34,31 @@
  *   TEST_MILESTONE                    MCP version
  *   TEST_MODEL                        Reclass model of environment
  *   TEST_PASS_THRESHOLD               Persent of passed tests to consider build successful
- *   SLAVE_NODE
  *
  **/
 common = new com.mirantis.mk.Common()
 def artifactoryServer = Artifactory.server('mcp-ci')
 def artifactoryUrl = artifactoryServer.getUrl()
 def salt_overrides_list = SALT_OVERRIDES.tokenize('\n')
+def SLAVE_NODE = 'python'
+
+if ( STACK_TYPE <> 'heat' ) {
+    SLAVE_NODE = 'oscore-testing'
+}
 
 node("${SLAVE_NODE}") {
 
     def project = PROJECT
     def pkgReviewNameSpace
     def extra_repo = EXTRA_REPO
-    def testrail = false
+    def testrail = true
     def test_milestone = ''
     def test_tempest_pattern = TEST_TEMPEST_PATTERN
     def stack_deploy_job = "deploy-${STACK_TYPE}-${TEST_MODEL}"
     def deployBuild
-    def deployBuildParams
     def salt_master_url
     def stack_name
+    def formula_pkg_revision = 'stable'
 
     try {
 
@@ -96,6 +101,10 @@ node("${SLAVE_NODE}") {
             }
         }
 
+        if (common.validInputParam('FORMULA_PKG_REVISION')) {
+            formula_pkg_revision = FORMULA_PKG_REVISION
+        }
+
         if (salt_overrides_list) {
             common.infoMsg("Next salt model parameters will be overriden:\n${salt_overrides_list.join('\n')}")
         }
@@ -103,7 +112,7 @@ node("${SLAVE_NODE}") {
         if (STACK_TYPE == 'kvm') {
             // Deploy KVM environment
             stage('Trigger deploy KVM job') {
-                deployBuild = build(job: 'deploy-kvm-virtual_mcp11_aio', parameters: [
+                deployBuild = build(job: "deploy-kvm-${TEST_MODEL}", parameters: [
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
@@ -111,19 +120,27 @@ node("${SLAVE_NODE}") {
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
             }
-            deployBuildParams = deployBuild.description.tokenize( ' ' )
-            salt_master_url = "http://${deployBuildParams[1]}:6969"
-            stack_name = "${deployBuildParams[0]}"
-            // Deploy MCP environment
+                
+            // Try to set stack name for stack cleanup job
+            if (deployBuild.description) {
+                stack_name = deployBuild.description.tokenize(' ')[0]
+            }
+            if (deployBuild.result != 'SUCCESS'){
+                error("Deployment failed, please check ${deployBuild.absoluteUrl}")
+            }
+            // get salt master url
+            salt_master_url = "http://${deployBuild.description.tokenize(' ')[1]}:6969"
+
+            // Deploy MCP environment with upstream pipeline
             stage('Trigger deploy MCP job') {
-                deployBuild = build(job: 'deploy-physical-virtual_mcp11_aio', parameters: [
+                deployBuild = build(job: "deploy-physical-${TEST_MODEL}", parameters: [
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
                     [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
                     [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
                     [$class: 'StringParameterValue', name: 'STACK_TYPE', value: 'physical'],
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: salt_master_url],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
@@ -131,23 +148,31 @@ node("${SLAVE_NODE}") {
         } else {
             // Deploy MCP environment
             stage('Trigger deploy job') {
-                deployBuild = build(job: stack_deploy_job, parameters: [
+                deployBuild = build(job: stack_deploy_job, propagate: false, parameters: [
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
                     [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
                     [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
                     [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
+                    [$class: 'StringParameterValue', name: 'FORMULA_PKG_REVISION', value: formula_pkg_revision],
                     [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
+
+                // Try to set stack name for stack cleanup job
+                if (deployBuild.description) {
+                    stack_name = deployBuild.description.tokenize(' ')[0]
+                }
+                if (deployBuild.result != 'SUCCESS'){
+                    error("Deployment failed, please check ${deployBuild.absoluteUrl}")
+                }
             }
             // get salt master url
-            deployBuildParams = deployBuild.description.tokenize( ' ' )
-            salt_master_url = "http://${deployBuildParams[1]}:6969"
-            stack_name = "${deployBuildParams[0]}"
+            salt_master_url = "http://${deployBuild.description.tokenize(' ')[1]}:6969"
+            common.infoMsg("Salt API is accessible via ${salt_master_url}")
         }
 
-        common.infoMsg("Salt API is accessible via ${salt_master_url}")
+        // get salt master url
 
         // Perform smoke tests to fail early
         stage('Run Smoke tests') {
@@ -157,7 +182,6 @@ node("${SLAVE_NODE}") {
                 [$class: 'StringParameterValue', name: 'TEST_TEMPEST_PATTERN', value: 'set=smoke'],
                 [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: false],
                 [$class: 'StringParameterValue', name: 'PROJECT', value: 'smoke'],
-                [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                 [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: '100'],
                 [$class: 'BooleanParameterValue', name: 'FAIL_ON_TESTS', value: true],
             ])
@@ -173,7 +197,6 @@ node("${SLAVE_NODE}") {
                     [$class: 'StringParameterValue', name: 'TEST_MILESTONE', value: test_milestone],
                     [$class: 'StringParameterValue', name: 'TEST_MODEL', value: TEST_MODEL],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_VERSION', value: OPENSTACK_VERSION],
-                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                     [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: testrail.toBoolean()],
                     [$class: 'StringParameterValue', name: 'PROJECT', value: project],
                     [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: TEST_PASS_THRESHOLD],
@@ -190,13 +213,24 @@ node("${SLAVE_NODE}") {
         // Clean
         //
         if (common.validInputParam('STACK_DELETE') && STACK_DELETE.toBoolean() == true) {
-            stage('Trigger cleanup job') {
-                common.errorMsg('Stack cleanup job triggered')
-                build(job: STACK_CLEANUP_JOB, parameters: [
-                    [$class: 'StringParameterValue', name: 'STACK_NAME', value: stack_name],
-                    [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true],
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: SLAVE_NODE],
-                ])
+            if (stack_name) {
+                stage('Trigger cleanup job') {
+                    common.errorMsg('Stack cleanup job triggered')
+                    build(job: STACK_CLEANUP_JOB, parameters: [
+                        [$class: 'StringParameterValue', name: 'STACK_NAME', value: stack_name],
+                        [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_URL', value: OPENSTACK_API_URL],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_CREDENTIALS', value: OPENSTACK_API_CREDENTIALS],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_DOMAIN', value: OPENSTACK_API_PROJECT_DOMAIN],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_ID', value: OPENSTACK_API_PROJECT_ID],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_USER_DOMAIN', value: OPENSTACK_API_USER_DOMAIN],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_CLIENT', value: OPENSTACK_API_CLIENT],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION],
+                    ])
+                }
+            } else {
+                error('Stack name is undefined, cannot cleanup')
             }
         }
     }
