@@ -183,6 +183,7 @@ node("${SLAVE_NODE}") {
                 [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: false],
                 [$class: 'StringParameterValue', name: 'PROJECT', value: 'smoke'],
                 [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: '100'],
+                [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                 [$class: 'BooleanParameterValue', name: 'FAIL_ON_TESTS', value: true],
             ])
         }
@@ -199,6 +200,7 @@ node("${SLAVE_NODE}") {
                     [$class: 'StringParameterValue', name: 'OPENSTACK_VERSION', value: OPENSTACK_VERSION],
                     [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: testrail.toBoolean()],
                     [$class: 'StringParameterValue', name: 'PROJECT', value: project],
+                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                     [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: TEST_PASS_THRESHOLD],
                     [$class: 'BooleanParameterValue', name: 'FAIL_ON_TESTS', value: FAIL_ON_TESTS.toBoolean()],
                 ])
