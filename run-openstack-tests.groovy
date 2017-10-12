@@ -24,7 +24,7 @@
  *   PROC_RESULTS_JOB             Name of job for test results processing
  *   FAIL_ON_TESTS                Whether to fail build on tests failures or not
  *   TEST_PASS_THRESHOLD          Persent of passed tests to consider build successful
- *   SLAVE_NODE
+ *   SLAVE_NODE                   Label of a jenkins node where the job will be run 
  *
  */
 
@@ -36,6 +36,10 @@ python = new com.mirantis.mk.Python()
 
 // Define global variables
 def saltMaster
+
+if (common.validInputParam('TESTRAIL') {
+    SLAVE_NODE = 'python'
+}
 
 node("${SLAVE_NODE}") {
 
@@ -60,16 +64,8 @@ node("${SLAVE_NODE}") {
         }
 
         stage ('Connect to salt master') {
-            def SALT_PEPPER = true
-
-            // Connect to Salt master
-           if (SALT_PEPPER) {
-                python.setupPepperVirtualenv(venv,SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
-                saltMaster = "${venv}"
-            } else {
-                // Connect to Salt master
-                saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
-            }
+            python.setupPepperVirtualenv(venv,SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
+            saltMaster = "${venv}"
         }
 
         if (common.checkContains('TEST_DOCKER_INSTALL', 'true')) {
