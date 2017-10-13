@@ -42,7 +42,7 @@ def artifactoryUrl = artifactoryServer.getUrl()
 def salt_overrides_list = SALT_OVERRIDES.tokenize('\n')
 def SLAVE_NODE = 'python'
 
-if (STACK_TYPE != 'heat') {
+if ( STACK_TYPE <> 'heat' ) {
     SLAVE_NODE = 'oscore-testing'
 }
 
@@ -112,7 +112,8 @@ node("${SLAVE_NODE}") {
         if (STACK_TYPE == 'kvm') {
             // Deploy KVM environment
             stage('Trigger deploy KVM job') {
-                deployBuild = build(job: "deploy-kvm-${TEST_MODEL}", parameters: [
+                deployBuild = build(job: "deploy-kvm-${TEST_MODEL}", propagate: false, parameters: [
+                    [$class: 'NodeParameterValue', labels: ["${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
@@ -120,7 +121,7 @@ node("${SLAVE_NODE}") {
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
             }
-                
+
             // Try to set stack name for stack cleanup job
             if (deployBuild.description) {
                 stack_name = deployBuild.description.tokenize(' ')[0]
@@ -140,7 +141,6 @@ node("${SLAVE_NODE}") {
                     [$class: 'StringParameterValue', name: 'STACK_TEST', value: ''],
                     [$class: 'StringParameterValue', name: 'STACK_TYPE', value: 'physical'],
                     [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: salt_master_url],
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
@@ -183,7 +183,6 @@ node("${SLAVE_NODE}") {
                 [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: false],
                 [$class: 'StringParameterValue', name: 'PROJECT', value: 'smoke'],
                 [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: '100'],
-                [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                 [$class: 'BooleanParameterValue', name: 'FAIL_ON_TESTS', value: true],
             ])
         }
@@ -200,7 +199,6 @@ node("${SLAVE_NODE}") {
                     [$class: 'StringParameterValue', name: 'OPENSTACK_VERSION', value: OPENSTACK_VERSION],
                     [$class: 'BooleanParameterValue', name: 'TESTRAIL', value: testrail.toBoolean()],
                     [$class: 'StringParameterValue', name: 'PROJECT', value: project],
-                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                     [$class: 'StringParameterValue', name: 'TEST_PASS_THRESHOLD', value: TEST_PASS_THRESHOLD],
                     [$class: 'BooleanParameterValue', name: 'FAIL_ON_TESTS', value: FAIL_ON_TESTS.toBoolean()],
                 ])
@@ -228,7 +226,6 @@ node("${SLAVE_NODE}") {
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_ID', value: OPENSTACK_API_PROJECT_ID],
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_USER_DOMAIN', value: OPENSTACK_API_USER_DOMAIN],
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_CLIENT', value: OPENSTACK_API_CLIENT],
-                        [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true],
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION],
                     ])
                 }
