@@ -113,7 +113,7 @@ node("${SLAVE_NODE}") {
             // Deploy KVM environment
             stage('Trigger deploy KVM job') {
                 deployBuild = build(job: "deploy-kvm-${TEST_MODEL}", propagate: false, parameters: [
-                    [$class: 'NodeParameterValue', labels: ["${SLAVE_NODE}"],
+                    [$class: 'NodeParameterValue', labels: ["${SLAVE_NODE}"]],
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
