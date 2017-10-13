@@ -42,7 +42,7 @@ def artifactoryUrl = artifactoryServer.getUrl()
 def salt_overrides_list = SALT_OVERRIDES.tokenize('\n')
 def SLAVE_NODE = 'python'
 
-if ( STACK_TYPE != 'heat' ) {
+if (STACK_TYPE != 'heat' ) {
     SLAVE_NODE = 'oscore-testing'
 }
 
@@ -113,9 +113,8 @@ node("${SLAVE_NODE}") {
             // Deploy KVM environment
             stage('Trigger deploy KVM job') {
                 deployBuild = build(job: "deploy-kvm-${TEST_MODEL}", propagate: false, parameters: [
-                    [$class: 'NodeParameterValue', labels: ["${SLAVE_NODE}"]],
+                    [$class: 'NodeParameterValue', name: 'node_name', labels: ["${SLAVE_NODE}"]],
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${SLAVE_NODE}"],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                     [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: true],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
