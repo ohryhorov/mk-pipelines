@@ -113,7 +113,7 @@ node("${SLAVE_NODE}") {
             // Deploy KVM environment
             stage('Trigger deploy KVM job') {
                 deployBuild = build(job: "deploy-kvm-${TEST_MODEL}", propagate: false, parameters: [
-                    [$class: 'NodeParameterValue', name: "${SLAVE_NODE}", labels: ["${SLAVE_NODE}"], nodeEligibility: [$class: 'AllNodeEligibility']],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${env.NODE_NAME}"],
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                     [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: true],
@@ -134,7 +134,7 @@ node("${SLAVE_NODE}") {
             // Deploy MCP environment with upstream pipeline
             stage('Trigger deploy MCP job') {
                 deployBuild = build(job: "deploy-physical-${TEST_MODEL}", parameters: [
-                    [$class: 'NodeParameterValue', name: "${SLAVE_NODE}", labels: ["${SLAVE_NODE}"], nodeEligibility: [$class: 'AllNodeEligibility']],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${deployBuild.description.tokenize(' ')[2]}"],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
                     [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
@@ -177,7 +177,7 @@ node("${SLAVE_NODE}") {
         // Perform smoke tests to fail early
         stage('Run Smoke tests') {
             build(job: STACK_TEST_JOB, parameters: [
-                [$class: 'NodeParameterValue', name: "${SLAVE_NODE}", labels: ["${SLAVE_NODE}"], nodeEligibility: [$class: 'AllNodeEligibility']],
+                [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${deployBuild.description.tokenize(' ')[2]}"],
                 [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: salt_master_url],
                 [$class: 'StringParameterValue', name: 'TEST_TEMPEST_TARGET', value: TEST_TEMPEST_TARGET],
                 [$class: 'StringParameterValue', name: 'TEST_TEMPEST_PATTERN', value: 'set=smoke'],
@@ -192,7 +192,7 @@ node("${SLAVE_NODE}") {
         if (test_tempest_pattern) {
             stage("Run ${project} tests") {
                 build(job: STACK_TEST_JOB, parameters: [
-                    [$class: 'NodeParameterValue', name: "${SLAVE_NODE}", labels: ["${SLAVE_NODE}"], nodeEligibility: [$class: 'AllNodeEligibility']],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${deployBuild.description.tokenize(' ')[2]}"],
                     [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: salt_master_url],
                     [$class: 'StringParameterValue', name: 'TEST_TEMPEST_TARGET', value: TEST_TEMPEST_TARGET],
                     [$class: 'StringParameterValue', name: 'TEST_TEMPEST_PATTERN', value: test_tempest_pattern],
