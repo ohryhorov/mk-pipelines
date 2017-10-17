@@ -59,6 +59,7 @@ node("${SLAVE_NODE}") {
     def salt_master_url
     def stack_name
     def formula_pkg_revision = 'stable'
+    def node_name
 
     try {
 
@@ -113,7 +114,6 @@ node("${SLAVE_NODE}") {
             // Deploy KVM environment
             stage('Trigger deploy KVM job') {
                 deployBuild = build(job: "deploy-kvm-${TEST_MODEL}", propagate: false, parameters: [
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${env.NODE_NAME}"],
                     [$class: 'BooleanParameterValue', name: 'DEPLOY_OPENSTACK', value: false],
                     [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: false],
                     [$class: 'BooleanParameterValue', name: 'CREATE_ENV', value: true],
@@ -130,11 +130,12 @@ node("${SLAVE_NODE}") {
             }
             // get salt master url
             salt_master_url = "http://${deployBuild.description.tokenize(' ')[1]}:6969"
+            node_name = "${deployBuild.description.tokenize(' ')[2]}"
 
             // Deploy MCP environment with upstream pipeline
             stage('Trigger deploy MCP job') {
                 deployBuild = build(job: "deploy-physical-${TEST_MODEL}", parameters: [
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${deployBuild.description.tokenize(' ')[2]}"],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: node_name],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
                     [$class: 'StringParameterValue', name: 'STACK_INSTALL', value: STACK_INSTALL],
@@ -177,7 +178,7 @@ node("${SLAVE_NODE}") {
         // Perform smoke tests to fail early
         stage('Run Smoke tests') {
             build(job: STACK_TEST_JOB, parameters: [
-                [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${deployBuild.description.tokenize(' ')[2]}"],
+                [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: node_name],
                 [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: salt_master_url],
                 [$class: 'StringParameterValue', name: 'TEST_TEMPEST_TARGET', value: TEST_TEMPEST_TARGET],
                 [$class: 'StringParameterValue', name: 'TEST_TEMPEST_PATTERN', value: 'set=smoke'],
@@ -192,7 +193,7 @@ node("${SLAVE_NODE}") {
         if (test_tempest_pattern) {
             stage("Run ${project} tests") {
                 build(job: STACK_TEST_JOB, parameters: [
-                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: "${deployBuild.description.tokenize(' ')[2]}"],
+                    [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: node_name],
                     [$class: 'StringParameterValue', name: 'SALT_MASTER_URL', value: salt_master_url],
                     [$class: 'StringParameterValue', name: 'TEST_TEMPEST_TARGET', value: TEST_TEMPEST_TARGET],
                     [$class: 'StringParameterValue', name: 'TEST_TEMPEST_PATTERN', value: test_tempest_pattern],
@@ -210,7 +211,6 @@ node("${SLAVE_NODE}") {
         currentBuild.result = 'FAILURE'
         throw e
     } finally {
-
         //
         // Clean
         //
@@ -219,8 +219,8 @@ node("${SLAVE_NODE}") {
                 stage('Trigger cleanup job') {
                     common.errorMsg('Stack cleanup job triggered')
                     build(job: STACK_CLEANUP_JOB, parameters: [
-                        [$class: 'NodeParameterValue', name: "${SLAVE_NODE}", labels: ["${SLAVE_NODE}"], nodeEligibility: [$class: 'AllNodeEligibility']],
                         [$class: 'StringParameterValue', name: 'STACK_NAME', value: stack_name],
+                        [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: node_name],
                         [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_URL', value: OPENSTACK_API_URL],
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_CREDENTIALS', value: OPENSTACK_API_CREDENTIALS],
