@@ -230,6 +230,7 @@ node("${SLAVE_NODE}") {
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_USER_DOMAIN', value: OPENSTACK_API_USER_DOMAIN],
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_CLIENT', value: OPENSTACK_API_CLIENT],
                         [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION],
+                        [$class: 'BooleanParameterValue', name: 'DESTROY_ENV', value: true],
                     ])
                 }
             } else {
