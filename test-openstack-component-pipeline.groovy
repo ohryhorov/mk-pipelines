@@ -40,11 +40,11 @@ common = new com.mirantis.mk.Common()
 def artifactoryServer = Artifactory.server('mcp-ci')
 def artifactoryUrl = artifactoryServer.getUrl()
 def salt_overrides_list = SALT_OVERRIDES.tokenize('\n')
-//def SLAVE_NODE = 'python'
+def SLAVE_NODE = 'python'
 
-//if (STACK_TYPE != 'heat' ) {
+if (STACK_TYPE != 'heat' ) {
     SLAVE_NODE = 'oscore-testing'
-//}
+}
 
 node("${SLAVE_NODE}") {
 
