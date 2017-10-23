@@ -36,15 +36,15 @@ python = new com.mirantis.mk.Python()
 
 // Define global variables
 def saltMaster
-def SLAVE_NODE
+def slave_node
 
 if ( STACK_TYPE != 'heat' ) {
-    SLAVE_NODE = 'oscore-testing'
+    slave_node = 'oscore-testing'
 } else {
-    SLAVE_NODE = 'python'
+    slave_node = 'python'
 }
 
-node("${SLAVE_NODE}") {
+node("${slave_node}") {
 
     def log_dir = "/home/rally/rally_reports/${PROJECT}"
     def reports_dir = "/root/rally_reports/${PROJECT}"
@@ -67,7 +67,7 @@ node("${SLAVE_NODE}") {
         }
 
         stage ('Connect to salt master') {
-            python.setupPepperVirtualenv(venv,SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
+            python.setupPepperVirtualenv(venv, SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
             saltMaster = "${venv}"
         }
 

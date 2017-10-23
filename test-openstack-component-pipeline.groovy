@@ -40,7 +40,7 @@ common = new com.mirantis.mk.Common()
 def artifactoryServer = Artifactory.server('mcp-ci')
 def artifactoryUrl = artifactoryServer.getUrl()
 def salt_overrides_list = SALT_OVERRIDES.tokenize('\n')
-def SLAVE_NODE = 'python'
+def slave_node = 'python'
 
 def get_test_pattern(project) {
     def pattern_map = ['cinder': 'volume',
@@ -58,10 +58,10 @@ def get_test_pattern(project) {
 }
 
 if (STACK_TYPE != 'heat' ) {
-    SLAVE_NODE = 'oscore-testing'
+    slave_node = 'oscore-testing'
 }
 
-node("${SLAVE_NODE}") {
+node("${slave_node}") {
     def project = PROJECT
     def pkgReviewNameSpace
     def extra_repo = EXTRA_REPO
@@ -73,7 +73,7 @@ node("${SLAVE_NODE}") {
     def salt_master_url
     def stack_name
     def formula_pkg_revision = 'stable'
-    def node_name = SLAVE_NODE
+    def node_name = slave_node
 
     try {
 
@@ -172,8 +172,6 @@ node("${SLAVE_NODE}") {
             salt_master_url = "http://${deployBuild.description.tokenize(' ')[1]}:6969"
             common.infoMsg("Salt API is accessible via ${salt_master_url}")
         }
-
-        // get salt master url
 
         // Perform smoke tests to fail early
         stage('Run Smoke tests') {
