@@ -121,13 +121,6 @@ node("${slave_node}") {
                 ])
             }
 
-            // Try to set stack name for stack cleanup job
-            if (deployBuild.description) {
-                stack_name = deployBuild.description.tokenize(' ')[0]
-            }
-            if (deployBuild.result != 'SUCCESS'){
-                error("Deployment failed, please check ${deployBuild.absoluteUrl}")
-            }
             // get salt master url
             salt_master_url = "http://${deployBuild.description.tokenize(' ')[1]}:6969"
             node_name = "${deployBuild.description.tokenize(' ')[2]}"
@@ -159,18 +152,18 @@ node("${slave_node}") {
                     [$class: 'BooleanParameterValue', name: 'STACK_DELETE', value: false],
                     [$class: 'TextParameterValue', name: 'SALT_OVERRIDES', value: salt_overrides_list.join('\n')],
                 ])
-
-                // Try to set stack name for stack cleanup job
-                if (deployBuild.description) {
-                    stack_name = deployBuild.description.tokenize(' ')[0]
-                }
-                if (deployBuild.result != 'SUCCESS'){
-                    error("Deployment failed, please check ${deployBuild.absoluteUrl}")
-                }
             }
             // get salt master url
             salt_master_url = "http://${deployBuild.description.tokenize(' ')[1]}:6969"
             common.infoMsg("Salt API is accessible via ${salt_master_url}")
+        }
+
+        // Try to set stack name for stack cleanup job
+        if (deployBuild.description) {
+            stack_name = deployBuild.description.tokenize(' ')[0]
+        }
+        if (deployBuild.result != 'SUCCESS'){
+            error("Deployment failed, please check ${deployBuild.absoluteUrl}")
         }
 
         // Perform smoke tests to fail early

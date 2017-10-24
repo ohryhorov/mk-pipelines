@@ -24,7 +24,7 @@
  *   PROC_RESULTS_JOB             Name of job for test results processing
  *   FAIL_ON_TESTS                Whether to fail build on tests failures or not
  *   TEST_PASS_THRESHOLD          Persent of passed tests to consider build successful
- *   SLAVE_NODE                   Lable or node name where the job will be run
+ *   SLAVE_NODE                   Label or node name where the job will be run
  *
  */
 
