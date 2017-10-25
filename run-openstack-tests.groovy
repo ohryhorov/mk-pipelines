@@ -38,7 +38,7 @@ python = new com.mirantis.mk.Python()
 def saltMaster
 def slave_node = 'python'
 
-if (common.validInputParam(SLAVE_NODE)) {
+if (common.validInputParam('SLAVE_NODE')) {
     slave_node = SLAVE_NODE
 }
 
