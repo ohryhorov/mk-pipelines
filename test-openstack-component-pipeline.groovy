@@ -61,7 +61,7 @@ if (STACK_TYPE != 'heat' ) {
     slave_node = 'oscore-testing'
 }
 
-node("${slave_node}") {
+node(slave_node) {
     def project = PROJECT
     def pkgReviewNameSpace
     def extra_repo = EXTRA_REPO
@@ -127,7 +127,7 @@ node("${slave_node}") {
 
             // Deploy MCP environment with upstream pipeline
             stage('Trigger deploy MCP job') {
-                deployBuild = build(job: "deploy-physical-${TEST_MODEL}", parameters: [
+                deployBuild = build(job: "deploy-heat-${TEST_MODEL}", parameters: [
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: node_name],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
