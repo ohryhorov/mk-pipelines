@@ -127,7 +127,7 @@ node(slave_node) {
 
             // Deploy MCP environment with upstream pipeline
             stage('Trigger deploy MCP job') {
-                deployBuild = build(job: "deploy-heat-${TEST_MODEL}", parameters: [
+                deployBuild = build(job: "deploy-heat-${TEST_MODEL}", propagate: false, parameters: [
                     [$class: 'StringParameterValue', name: 'SLAVE_NODE', value: node_name],
                     [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
                     [$class: 'StringParameterValue', name: 'HEAT_STACK_ZONE', value: HEAT_STACK_ZONE],
