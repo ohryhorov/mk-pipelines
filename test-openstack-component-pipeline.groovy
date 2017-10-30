@@ -161,6 +161,7 @@ node(slave_node) {
         // Try to set stack name for stack cleanup job
         if (deployBuild.description) {
             stack_name = deployBuild.description.tokenize(' ')[0]
+            echo "stack_name ${stack_name}"
         }
         if (deployBuild.result != 'SUCCESS'){
             error("Deployment failed, please check ${deployBuild.absoluteUrl}")
