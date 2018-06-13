@@ -18,6 +18,8 @@
  *   STACK_CLEANUP_JOB          Name of job for deleting stack
  *
  *   STACK_COMPUTE_COUNT        Number of compute nodes to launch
+ *   STACK_CLUSTER_NAME         The name of cluster model to use
+ *   STATIC_MGMT_NETWORK        Check if model contains static IP address definitions for all nodes
  *
  *   AWS_STACK_REGION           CloudFormation AWS region
  *   AWS_API_CREDENTIALS        AWS Access key ID with  AWS secret access key
@@ -31,10 +33,15 @@
  *   OPENSTACK_API_PROJECT      OpenStack project to connect to
  *   OPENSTACK_API_CLIENT       Versions of OpenStack python clients
  *   OPENSTACK_API_VERSION      Version of the OpenStack API (2/3)
+ *   SLAVE_NODE                 Lable or node name where the job will be run
 
  *   SALT_MASTER_CREDENTIALS    Credentials to the Salt API
  *  required for STACK_TYPE=physical
  *   SALT_MASTER_URL            URL of Salt master
+
+ *   BOOTSTRAP_EXTRA_REPO_PARAMS  optional parameter to define a list of extra repos with parameters
+ *                                which have to be added during bootstrap.
+ *                                Format: repo 1, repo priority 1, repo pin 1; repo 2, repo priority 2, repo pin 2;
 
  * Test settings:
  *   TEST_K8S_API_SERVER     Kubernetes API address
@@ -44,6 +51,13 @@
  *   TEST_TEMPEST_IMAGE           Tempest image link
  *   TEST_TEMPEST_PATTERN         If not false, run tests matched to pattern only
  *   TEST_TEMPEST_TARGET          Salt target for tempest node
+ *   TESTRAIL_REPORT              Whether upload results to testrail or not
+ *   TESTRAIL_REPORTER_IMAGE      Docker image for testrail reporter
+ *   TESTRAIL_QA_CREDENTIALS      Credentials for upload to testrail
+ *   TESTRAIL_MILESTONE           Product version for tests
+ *   TESTRAIL_PLAN                Testrail test plan
+ *   TESTRAIL_GROUP               Testrail test group
+ *   TESTRAIL_SUITE               Testrail test suite
  *
  * optional parameters for overwriting soft params
  *   SALT_OVERRIDES              YAML with overrides for Salt deployment
@@ -55,16 +69,16 @@ git = new com.mirantis.mk.Git()
 openstack = new com.mirantis.mk.Openstack()
 aws = new com.mirantis.mk.Aws()
 orchestrate = new com.mirantis.mk.Orchestrate()
+python = new com.mirantis.mk.Python()
 salt = new com.mirantis.mk.Salt()
 test = new com.mirantis.mk.Test()
-python = new com.mirantis.mk.Python()
 
 _MAX_PERMITTED_STACKS = 2
 overwriteFile = "/srv/salt/reclass/classes/cluster/override.yml"
 
 // Define global variables
-def saltMaster
 def venv
+def venvPepper
 def outputs = [:]
 
 def ipRegex = "\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"
@@ -76,440 +90,581 @@ if (STACK_TYPE == 'aws') {
     def openstackCloud
 }
 
-if (!common.validInputParam('SLAVE_NODE')) {
-    SLAVE_NODE = 'python'
-} 
+def slave_node = 'python'
 
-node("${SLAVE_NODE}") {
-    try {
-        // Set build-specific variables
-        venv = "${env.WORKSPACE}/venv"
+if (common.validInputParam('SLAVE_NODE')) {
+    slave_node = SLAVE_NODE
+}
+timeout(time: 12, unit: 'HOURS') {
+    node(slave_node) {
+        try {
+            // Set build-specific variables
+            def workspace = common.getWorkspace()
+            venv = "${workspace}/venv"
+            venvPepper = "${workspace}/venvPepper"
+            if(common.validInputParam("STACK_DELETE") && STACK_DELETE.toBoolean()){
+                common.warningMsg("You running stack with STACK_DELETE option enabled, deployed stack will be removed at the end!")
+            }
+            //
+            // Prepare machines
+            //
+            stage ('Create infrastructure') {
 
-        //
-        // Prepare machines
-        //
-        stage ('Create infrastructure') {
+                outputs.put('stack_type', STACK_TYPE)
 
-            outputs.put('stack_type', STACK_TYPE)
+                if (STACK_TYPE == 'heat') {
+                    // value defaults
+                    envParams = [
+                        'cluster_zone': HEAT_STACK_ZONE,
+                        'cluster_public_net': HEAT_STACK_PUBLIC_NET
+                    ]
 
-            if (STACK_TYPE == 'heat') {
-                // value defaults
-                envParams = [
-                    'cluster_zone': HEAT_STACK_ZONE,
-                    'cluster_public_net': HEAT_STACK_PUBLIC_NET
-                ]
-
-                if (STACK_REUSE.toBoolean() == true && STACK_NAME == '') {
-                    error("If you want to reuse existing stack you need to provide it's name")
-                }
-
-                if (STACK_REUSE.toBoolean() == false) {
-                    // Don't allow to set custom heat stack name
-                    wrap([$class: 'BuildUser']) {
-                        if (env.BUILD_USER_ID) {
-                            STACK_NAME = "${env.BUILD_USER_ID}-${JOB_NAME}-${BUILD_NUMBER}"
-                        } else {
-                            STACK_NAME = "jenkins-${JOB_NAME}-${BUILD_NUMBER}"
-                        }
-                        currentBuild.description = STACK_NAME
-                    }
-                }
-
-                // no underscore in STACK_NAME
-                STACK_NAME = STACK_NAME.replaceAll('_', '-')
-
-                // set description
-                currentBuild.description = "${STACK_NAME}"
-
-                // get templates
-                git.checkoutGitRepository('template', STACK_TEMPLATE_URL, STACK_TEMPLATE_BRANCH, STACK_TEMPLATE_CREDENTIALS)
-
-                // create openstack env
-                openstack.setupOpenstackVirtualenv(venv, OPENSTACK_API_CLIENT)
-                openstackCloud = openstack.createOpenstackEnv(
-                    OPENSTACK_API_URL, OPENSTACK_API_CREDENTIALS,
-                    OPENSTACK_API_PROJECT, OPENSTACK_API_PROJECT_DOMAIN,
-                    OPENSTACK_API_PROJECT_ID, OPENSTACK_API_USER_DOMAIN,
-                    OPENSTACK_API_VERSION)
-                openstack.getKeystoneToken(openstackCloud, venv)
-
-                //
-                // Verify possibility of create stack for given user and stack type
-                //
-                wrap([$class: 'BuildUser']) {
-                    if (env.BUILD_USER_ID && !env.BUILD_USER_ID.equals("jenkins") && !STACK_REUSE.toBoolean()) {
-                        def existingStacks = openstack.getStacksForNameContains(openstackCloud, "${env.BUILD_USER_ID}-${JOB_NAME}", venv)
-                        if (existingStacks.size() >= _MAX_PERMITTED_STACKS) {
-                            STACK_DELETE = "false"
-                            throw new Exception("You cannot create new stack, you already have ${_MAX_PERMITTED_STACKS} stacks of this type (${JOB_NAME}). \nStack names: ${existingStacks}")
-                        }
-                    }
-                }
-                // launch stack
-                if (STACK_REUSE.toBoolean() == false) {
-
-                    // set reclass repo in heat env
-                    try {
-                        envParams.put('cfg_reclass_branch', STACK_RECLASS_BRANCH)
-                        envParams.put('cfg_reclass_address', STACK_RECLASS_ADDRESS)
-                    } catch (MissingPropertyException e) {
-                        common.infoMsg("Property STACK_RECLASS_BRANCH or STACK_RECLASS_ADDRESS not found! Using default values from template.")
+                    if (STACK_REUSE.toBoolean() == true && STACK_NAME == '') {
+                        error("If you want to reuse existing stack you need to provide it's name")
                     }
 
-                    openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv)
-                }
-
-                // get SALT_MASTER_URL
-                saltMasterHost = openstack.getHeatStackOutputParam(openstackCloud, STACK_NAME, 'salt_master_ip', venv)
-                // check that saltMasterHost is valid
-                if (!saltMasterHost || !saltMasterHost.matches(ipRegex)) {
-                    common.errorMsg("saltMasterHost is not a valid ip, value is: ${saltMasterHost}")
-                    throw new Exception("saltMasterHost is not a valid ip")
-                }
-
-                currentBuild.description = "${STACK_NAME} ${saltMasterHost}"
-
-                SALT_MASTER_URL = "http://${saltMasterHost}:6969"
-
-            } else if (STACK_TYPE == 'aws') {
-
-                // setup environment
-                aws.setupVirtualEnv(venv)
-
-                // set aws_env_vars
-                aws_env_vars = aws.getEnvVars(AWS_API_CREDENTIALS, AWS_STACK_REGION)
-
-                if (STACK_REUSE.toBoolean() == true && STACK_NAME == '') {
-                    error("If you want to reuse existing stack you need to provide it's name")
-                }
-
-                if (STACK_REUSE.toBoolean() == false) {
-                    // Don't allow to set custom stack name
-                    wrap([$class: 'BuildUser']) {
-                        if (env.BUILD_USER_ID) {
-                            STACK_NAME = "${env.BUILD_USER_ID}-${JOB_NAME}-${BUILD_NUMBER}"
-                        } else {
-                            STACK_NAME = "jenkins-${JOB_NAME}-${BUILD_NUMBER}"
+                    if (STACK_REUSE.toBoolean() == false) {
+                        // Don't allow to set custom heat stack name
+                        wrap([$class: 'BuildUser']) {
+                            if (env.BUILD_USER_ID) {
+                                STACK_NAME = "${env.BUILD_USER_ID}-${JOB_NAME}-${BUILD_NUMBER}"
+                            } else {
+                                STACK_NAME = "jenkins-${JOB_NAME}-${BUILD_NUMBER}"
+                            }
+                            currentBuild.description = STACK_NAME
                         }
                     }
 
                     // no underscore in STACK_NAME
                     STACK_NAME = STACK_NAME.replaceAll('_', '-')
-                }
+                    outputs.put('stack_name', STACK_NAME)
 
-                // set description
-                currentBuild.description = STACK_NAME
+                    // set description
+                    currentBuild.description = "${STACK_NAME}"
 
-                if (STACK_REUSE.toBoolean() == false) {
                     // get templates
                     git.checkoutGitRepository('template', STACK_TEMPLATE_URL, STACK_TEMPLATE_BRANCH, STACK_TEMPLATE_CREDENTIALS)
 
-                    // start stack
-                    def stack_params = [
-                        "ParameterKey=KeyName,ParameterValue=" + AWS_SSH_KEY,
-                        "ParameterKey=CmpNodeCount,ParameterValue=" + STACK_COMPUTE_COUNT
-                    ]
-                    def template_file = 'cfn/' + STACK_TEMPLATE + '.yml'
-                    aws.createStack(venv, aws_env_vars, template_file, STACK_NAME, stack_params)
-                }
+                    // create openstack env
+                    openstack.setupOpenstackVirtualenv(venv, OPENSTACK_API_CLIENT)
+                    openstackCloud = openstack.createOpenstackEnv(venv,
+                        OPENSTACK_API_URL, OPENSTACK_API_CREDENTIALS,
+                        OPENSTACK_API_PROJECT, OPENSTACK_API_PROJECT_DOMAIN,
+                        OPENSTACK_API_PROJECT_ID, OPENSTACK_API_USER_DOMAIN,
+                        OPENSTACK_API_VERSION)
+                    openstack.getKeystoneToken(openstackCloud, venv)
 
-                // wait for stack to be ready
-                aws.waitForStatus(venv, aws_env_vars, STACK_NAME, 'CREATE_COMPLETE')
-
-                // get outputs
-                saltMasterHost = aws.getOutputs(venv, aws_env_vars, STACK_NAME, 'SaltMasterIP')
-
-                // check that saltMasterHost is valid
-                if (!saltMasterHost || !saltMasterHost.matches(ipRegex)) {
-                    common.errorMsg("saltMasterHost is not a valid ip, value is: ${saltMasterHost}")
-                    throw new Exception("saltMasterHost is not a valid ip")
-                }
-
-                currentBuild.description = "${STACK_NAME} ${saltMasterHost}"
-                SALT_MASTER_URL = "http://${saltMasterHost}:6969"
-
-            } else if (STACK_TYPE != 'physical') {
-                throw new Exception("STACK_TYPE ${STACK_TYPE} is not supported")
-            }
-
-            outputs.put('salt_api', SALT_MASTER_URL)
-
-            def SALT_PEPPER = true
-
-            if (SALT_PEPPER) {
-                python.setupPepperVirtualenv(venv,SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
-                saltMaster = "${venv}"
-            } else {
-                // Connect to Salt master
-                saltMaster = salt.connection(SALT_MASTER_URL, SALT_MASTER_CREDENTIALS, SALT_PEPPER)
-            }
-        }
-
-
-        // Set up override params
-        if (common.validInputParam('SALT_OVERRIDES')) {
-            stage('Set Salt overrides') {
-                salt.setSaltOverrides(saltMaster,  SALT_OVERRIDES)
-            }
-        }
-
-        //
-        // Install
-        //
-
-        if (common.checkContains('STACK_INSTALL', 'core')) {
-            stage('Install core infrastructure') {
-                orchestrate.installFoundationInfra(saltMaster)
-
-                if (common.checkContains('STACK_INSTALL', 'kvm')) {
-                    orchestrate.installInfraKvm(saltMaster)
-                    orchestrate.installFoundationInfra(saltMaster)
-                }
-
-                orchestrate.validateFoundationInfra(saltMaster)
-            }
-        }
-
-        // install ceph
-        if (common.checkContains('STACK_INSTALL', 'ceph')) {
-            stage('Install Ceph MONs') {
-                orchestrate.installCephMon(saltMaster)
-            }
-
-            stage('Install Ceph OSDs') {
-                orchestrate.installCephOsd(saltMaster)
-            }
-
-
-            stage('Install Ceph clients') {
-                orchestrate.installCephClient(saltMaster)
-            }
-        }
-
-        // install k8s
-        if (common.checkContains('STACK_INSTALL', 'k8s')) {
-
-            stage('Install Kubernetes infra') {
-                if (STACK_TYPE == 'aws') {
-                    // configure kubernetes_control_address - save loadbalancer
-                    def awsOutputs = aws.getOutputs(venv, aws_env_vars, STACK_NAME)
-                    common.prettyPrint(awsOutputs)
-                    if (awsOutputs.containsKey('ControlLoadBalancer')) {
-                        salt.runSaltProcessStep(saltMaster, 'I@salt:master', 'reclass.cluster_meta_set', ['kubernetes_control_address', awsOutputs['ControlLoadBalancer']], null, true)
-                        outputs.put('kubernetes_apiserver', 'https://' + awsOutputs['ControlLoadBalancer'])
+                    //
+                    // Verify possibility of create stack for given user and stack type
+                    //
+                    wrap([$class: 'BuildUser']) {
+                        if (env.BUILD_USER_ID && !env.BUILD_USER_ID.equals("jenkins") && !STACK_REUSE.toBoolean()) {
+                            def existingStacks = openstack.getStacksForNameContains(openstackCloud, "${env.BUILD_USER_ID}-${JOB_NAME}".replaceAll('_', '-'), venv)
+                            if (existingStacks.size() >= _MAX_PERMITTED_STACKS) {
+                                STACK_DELETE = "false"
+                                throw new Exception("You cannot create new stack, you already have ${_MAX_PERMITTED_STACKS} stacks of this type (${JOB_NAME}). \nStack names: ${existingStacks}")
+                            }
+                        }
                     }
+                    // launch stack
+                    if (STACK_REUSE.toBoolean() == false) {
+
+                        // set reclass repo in heat env
+                        try {
+                            envParams.put('cfg_reclass_branch', STACK_RECLASS_BRANCH)
+                            envParams.put('cfg_reclass_address', STACK_RECLASS_ADDRESS)
+                        } catch (MissingPropertyException e) {
+                            common.infoMsg("Property STACK_RECLASS_BRANCH or STACK_RECLASS_ADDRESS not found! Using default values from template.")
+                        }
+
+                        // put formulas revision - stable, testing or nightly
+                        if (common.validInputParam('FORMULA_PKG_REVISION')) {
+                            common.infoMsg("Setting formulas revision to ${FORMULA_PKG_REVISION}")
+                            envParams.put('cfg_formula_pkg_revision', FORMULA_PKG_REVISION)
+                        }
+
+                        // put extra repo definitions
+                        if (common.validInputParam('BOOTSTRAP_EXTRA_REPO_PARAMS')) {
+                            common.infoMsg("Setting additional repo during bootstrap to ${BOOTSTRAP_EXTRA_REPO_PARAMS}")
+                            envParams.put('cfg_bootstrap_extra_repo_params', BOOTSTRAP_EXTRA_REPO_PARAMS)
+                        }
+
+                        // put extra salt-formulas
+                        if (common.validInputParam('EXTRA_FORMULAS')) {
+                            common.infoMsg("Setting extra salt-formulas to ${EXTRA_FORMULAS}")
+                            envParams.put('cfg_extra_formulas', EXTRA_FORMULAS)
+                        }
+
+                        // add cluster name if specified
+                        if (common.validInputParam('STACK_CLUSTER_NAME')) {
+                            common.infoMsg("Setting cluster_name to ${STACK_CLUSTER_NAME}")
+                            envParams.put('cluster_name', STACK_CLUSTER_NAME)
+                        }
+
+                        if (common.validInputParam('STACK_COMPUTE_COUNT')) {
+                            if (STACK_COMPUTE_COUNT.toInteger() > 0){
+                                common.infoMsg("Setting cluster_node_count to ${STACK_COMPUTE_COUNT}")
+                                envParams.put('cluster_node_count', STACK_COMPUTE_COUNT)
+                            }
+                        }
+
+                        if (common.validInputParam('SALT_VERSION')) {
+                            if (common.validInputParam('SALT_VERSION')){
+                                common.infoMsg("Setting salt version version to ${SALT_VERSION}")
+                                envParams.put('cfg_saltversion', SALT_VERSION)
+                            }
+                        }
+
+                        openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv)
+                    }
+
+                    // get SALT_MASTER_URL
+                    saltMasterHost = openstack.getHeatStackOutputParam(openstackCloud, STACK_NAME, 'salt_master_ip', venv)
+                    // check that saltMasterHost is valid
+                    if (!saltMasterHost || !saltMasterHost.matches(ipRegex)) {
+                        common.errorMsg("saltMasterHost is not a valid ip, value is: ${saltMasterHost}")
+                        throw new Exception("saltMasterHost is not a valid ip")
+                    }
+
+                    currentBuild.description = "${STACK_NAME} ${saltMasterHost}"
+
+                    SALT_MASTER_URL = "http://${saltMasterHost}:6969"
+
+                } else if (STACK_TYPE == 'aws') {
+
+                    // setup environment
+                    aws.setupVirtualEnv(venv)
+
+                    // set aws_env_vars
+                    aws_env_vars = aws.getEnvVars(AWS_API_CREDENTIALS, AWS_STACK_REGION)
+
+                    if (STACK_REUSE.toBoolean() == true && STACK_NAME == '') {
+                        error("If you want to reuse existing stack you need to provide it's name")
+                    }
+
+                    if (STACK_REUSE.toBoolean() == false) {
+                        // Don't allow to set custom stack name
+                        wrap([$class: 'BuildUser']) {
+                            if (env.BUILD_USER_ID) {
+                                STACK_NAME = "${env.BUILD_USER_ID}-${JOB_NAME}-${BUILD_NUMBER}"
+                            } else {
+                                STACK_NAME = "jenkins-${JOB_NAME}-${BUILD_NUMBER}"
+                            }
+                        }
+
+                        // no underscore in STACK_NAME
+                        STACK_NAME = STACK_NAME.replaceAll('_', '-')
+                    }
+
+                    // set description
+                    currentBuild.description = STACK_NAME
+                    outputs.put('stack_name', STACK_NAME)
+
+                    if (STACK_REUSE.toBoolean() == false) {
+                        // get templates
+                        git.checkoutGitRepository('template', STACK_TEMPLATE_URL, STACK_TEMPLATE_BRANCH, STACK_TEMPLATE_CREDENTIALS)
+
+                        // start stack
+                        def stack_params = [
+                            "ParameterKey=KeyName,ParameterValue=" + AWS_SSH_KEY,
+                            "ParameterKey=CmpNodeCount,ParameterValue=" + STACK_COMPUTE_COUNT
+                        ]
+                        def template_file = 'cfn/' + STACK_TEMPLATE + '.yml'
+                        aws.createStack(venv, aws_env_vars, template_file, STACK_NAME, stack_params)
+                    }
+
+                    // wait for stack to be ready
+                    aws.waitForStatus(venv, aws_env_vars, STACK_NAME, 'CREATE_COMPLETE')
+
+                    // get outputs
+                    saltMasterHost = aws.getOutputs(venv, aws_env_vars, STACK_NAME, 'SaltMasterIP')
+
+                    // check that saltMasterHost is valid
+                    if (!saltMasterHost || !saltMasterHost.matches(ipRegex)) {
+                        common.errorMsg("saltMasterHost is not a valid ip, value is: ${saltMasterHost}")
+                        throw new Exception("saltMasterHost is not a valid ip")
+                    }
+
+                    currentBuild.description = "${STACK_NAME} ${saltMasterHost}"
+                    SALT_MASTER_URL = "http://${saltMasterHost}:6969"
+
+                } else if (STACK_TYPE != 'physical') {
+                    throw new Exception("STACK_TYPE ${STACK_TYPE} is not supported")
                 }
 
-                // ensure certificates are generated properly
-                salt.runSaltProcessStep(saltMaster, '*', 'saltutil.refresh_pillar', [], null, true)
-                salt.enforceState(saltMaster, '*', ['salt.minion.cert'], true)
+                outputs.put('salt_api', SALT_MASTER_URL)
 
-                orchestrate.installKubernetesInfra(saltMaster)
+                // Setup virtualenv for pepper
+                python.setupPepperVirtualenv(venvPepper, SALT_MASTER_URL, SALT_MASTER_CREDENTIALS)
             }
 
-            if (common.checkContains('STACK_INSTALL', 'contrail')) {
-                stage('Install Contrail for Kubernetes') {
-                    orchestrate.installContrailNetwork(saltMaster)
-                    orchestrate.installContrailCompute(saltMaster)
+
+            // Set up override params
+            if (common.validInputParam('SALT_OVERRIDES')) {
+                stage('Set Salt overrides') {
+                    salt.setSaltOverrides(venvPepper,  SALT_OVERRIDES)
                 }
             }
 
-            stage('Install Kubernetes control') {
-                orchestrate.installKubernetesControl(saltMaster)
+            //
+            // Install
+            //
 
-                // collect artifacts (kubeconfig)
-                writeFile(file: 'kubeconfig', text: salt.getFileContent(saltMaster, 'I@kubernetes:master and *01*', '/etc/kubernetes/admin-kube-config'))
-                archiveArtifacts(artifacts: 'kubeconfig')
+            if (common.checkContains('STACK_INSTALL', 'core')) {
+                stage('Install core infrastructure') {
+                    def staticMgmtNetwork = false
+                    if (common.validInputParam('STATIC_MGMT_NETWORK')) {
+                        staticMgmtNetwork = STATIC_MGMT_NETWORK.toBoolean()
+                    }
+                    orchestrate.installFoundationInfra(venvPepper, staticMgmtNetwork)
+
+                    if (common.checkContains('STACK_INSTALL', 'kvm')) {
+                        orchestrate.installInfraKvm(venvPepper)
+                        orchestrate.installFoundationInfra(venvPepper, staticMgmtNetwork)
+                    }
+
+                    orchestrate.validateFoundationInfra(venvPepper)
+                }
             }
 
-            stage('Scale Kubernetes computes') {
-                if (STACK_COMPUTE_COUNT > 0) {
+            // install k8s
+            if (common.checkContains('STACK_INSTALL', 'k8s')) {
+
+                stage('Install Kubernetes infra') {
                     if (STACK_TYPE == 'aws') {
-                        // get stack info
-                        def scaling_group = aws.getOutputs(venv, aws_env_vars, STACK_NAME, 'ComputesScalingGroup')
-
-                        //update autoscaling group
-                        aws.updateAutoscalingGroup(venv, aws_env_vars, scaling_group, ["--desired-capacity " + STACK_COMPUTE_COUNT])
-
-                        // wait for computes to boot up
-                        aws.waitForAutoscalingInstances(venv, aws_env_vars, scaling_group)
-                        sleep(60)
-
-                    } else if (STACK_TYPE == 'heat') {
-                        envParams.put('cluster_node_count', STACK_COMPUTE_COUNT)
-
-                        openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv, "update")
-                        sleep(60)
+                        // configure kubernetes_control_address - save loadbalancer
+                        def awsOutputs = aws.getOutputs(venv, aws_env_vars, STACK_NAME)
+                        common.prettyPrint(awsOutputs)
+                        if (awsOutputs.containsKey('ControlLoadBalancer')) {
+                            salt.runSaltProcessStep(venvPepper, 'I@salt:master', 'reclass.cluster_meta_set', ['kubernetes_control_address', awsOutputs['ControlLoadBalancer']], null, true)
+                            outputs.put('kubernetes_apiserver', 'https://' + awsOutputs['ControlLoadBalancer'])
+                        }
                     }
 
-                    orchestrate.installKubernetesCompute(saltMaster)
+                    // ensure certificates are generated properly
+                    salt.runSaltProcessStep(venvPepper, '*', 'saltutil.refresh_pillar', [], null, true)
+                    salt.enforceState(venvPepper, '*', ['salt.minion.cert'], true)
+
+                    orchestrate.installKubernetesInfra(venvPepper)
                 }
-            }
-        }
-
-        // install openstack
-        if (common.checkContains('STACK_INSTALL', 'openstack')) {
-            // install Infra and control, tests, ...
-
-            stage('Install OpenStack infra') {
-                orchestrate.installOpenstackInfra(saltMaster)
-            }
-
-            stage('Install OpenStack control') {
-                orchestrate.installOpenstackControl(saltMaster)
-            }
-
-            stage('Install OpenStack network') {
 
                 if (common.checkContains('STACK_INSTALL', 'contrail')) {
-                    orchestrate.installContrailNetwork(saltMaster)
-                } else if (common.checkContains('STACK_INSTALL', 'ovs')) {
-                    orchestrate.installOpenstackNetwork(saltMaster)
+                    stage('Install Contrail control') {
+                        orchestrate.installContrailNetwork(venvPepper)
+                    }
                 }
 
-                salt.runSaltProcessStep(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; neutron net-list'])
-                salt.runSaltProcessStep(saltMaster, 'I@keystone:server', 'cmd.run', ['. /root/keystonerc; nova net-list'])
-            }
+                stage('Install Kubernetes control') {
+                    orchestrate.installKubernetesControl(venvPepper)
 
-            if (salt.testTarget(saltMaster, 'I@ironic:conductor')){
-                stage('Install OpenStack Ironic conductor') {
-                    orchestrate.installIronicConductor(saltMaster)
+                    // collect artifacts (kubeconfig)
+                    writeFile(file: 'kubeconfig', text: salt.getFileContent(venvPepper, 'I@kubernetes:master and *01*', '/etc/kubernetes/admin-kube-config'))
+                    archiveArtifacts(artifacts: 'kubeconfig')
                 }
-            }
-
-
-            stage('Install OpenStack compute') {
-                orchestrate.installOpenstackCompute(saltMaster)
 
                 if (common.checkContains('STACK_INSTALL', 'contrail')) {
-                    orchestrate.installContrailCompute(saltMaster)
+                    stage('Install Contrail compute') {
+                        orchestrate.installContrailCompute(venvPepper)
+                    }
+                }
+
+                stage('Install Kubernetes computes') {
+                    if (common.validInputParam('STACK_COMPUTE_COUNT')) {
+                        if (STACK_COMPUTE_COUNT > 0) {
+                            if (STACK_TYPE == 'aws') {
+                                // get stack info
+                                def scaling_group = aws.getOutputs(venv, aws_env_vars, STACK_NAME, 'ComputesScalingGroup')
+
+                                //update autoscaling group
+                                aws.updateAutoscalingGroup(venv, aws_env_vars, scaling_group, ["--desired-capacity " + STACK_COMPUTE_COUNT])
+
+                                // wait for computes to boot up
+                                aws.waitForAutoscalingInstances(venv, aws_env_vars, scaling_group)
+                                sleep(60)
+
+                            } else if (STACK_TYPE == 'heat') {
+                                envParams.put('cluster_node_count', STACK_COMPUTE_COUNT)
+
+                                openstack.createHeatStack(openstackCloud, STACK_NAME, STACK_TEMPLATE, envParams, HEAT_STACK_ENVIRONMENT, venv, "update")
+                                sleep(60)
+                            }
+
+                        }
+                    }
+
+                    orchestrate.installKubernetesCompute(venvPepper)
                 }
             }
 
-        }
+            // install openstack
+            if (common.checkContains('STACK_INSTALL', 'openstack')) {
+                // install Infra and control, tests, ...
 
-        if (common.checkContains('STACK_INSTALL', 'cicd')) {
-            stage('Install Cicd') {
-                orchestrate.installDockerSwarm(saltMaster)
-                orchestrate.installCicd(saltMaster)
-            }
-        }
+                stage('Install OpenStack infra') {
+                    orchestrate.installOpenstackInfra(venvPepper)
+                }
 
-        if (common.checkContains('STACK_INSTALL', 'sl-legacy')) {
-            stage('Install StackLight v1') {
-                orchestrate.installStacklightv1Control(saltMaster)
-                orchestrate.installStacklightv1Client(saltMaster)
-            }
-        }
+                stage('Install OpenStack control') {
+                    orchestrate.installOpenstackControl(venvPepper)
+                }
 
-        if (common.checkContains('STACK_INSTALL', 'stacklight')) {
-            stage('Install StackLight') {
-                orchestrate.installDockerSwarm(saltMaster)
-                orchestrate.installStacklight(saltMaster)
-            }
-        }
+                // Workaround for PROD-17765 issue to prevent crashes of keystone.role_present state.
+                // More details: https://mirantis.jira.com/browse/PROD-17765
+                salt.runSaltProcessStep(venvPepper, 'I@keystone:client', 'service.restart', ['salt-minion'])
+                salt.minionsReachable(venvPepper, 'I@salt:master and *01*', 'I@keystone:client', null, 10, 6)
 
-        //
-        // Test
-        //
-        def artifacts_dir = '_artifacts/'
+                stage('Install OpenStack network') {
 
-        if (common.checkContains('STACK_TEST', 'k8s')) {
-            stage('Run k8s conformance e2e tests') {
-                def image = TEST_K8S_CONFORMANCE_IMAGE
-                def output_file = image.replaceAll('/', '-') + '.output'
+                    if (common.checkContains('STACK_INSTALL', 'contrail')) {
+                        orchestrate.installContrailNetwork(venvPepper)
+                    } else if (common.checkContains('STACK_INSTALL', 'ovs')) {
+                        orchestrate.installOpenstackNetwork(venvPepper)
+                    }
 
-                // run image
-                test.runConformanceTests(saltMaster, TEST_K8S_API_SERVER, image)
+                    // Wait for network to come up, 150s should be enough
+                    common.retry(10, 15) {
+                        salt.cmdRun(venvPepper, 'I@keystone:server', '. /root/keystonercv3; openstack network list')
+                    }
+                }
 
-                // collect output
-                sh "mkdir -p ${artifacts_dir}"
-                file_content = salt.getFileContent(saltMaster, 'ctl01*', '/tmp/' + output_file)
-                writeFile file: "${artifacts_dir}${output_file}", text: file_content
-                sh "cat ${artifacts_dir}${output_file}"
+                if (salt.testTarget(venvPepper, 'I@ironic:conductor')){
+                    stage('Install OpenStack Ironic conductor') {
+                        orchestrate.installIronicConductor(venvPepper)
+                    }
+                }
 
-                // collect artifacts
-                archiveArtifacts artifacts: "${artifacts_dir}${output_file}"
-            }
-        }
+                if (salt.testTarget(venvPepper, 'I@manila:share')){
+                    stage('Install OpenStack Manila data and share') {
+                       orchestrate.installManilaShare(venvPepper)
+                    }
+                }
 
-        if (common.checkContains('STACK_TEST', 'openstack')) {
-            if (common.checkContains('TEST_DOCKER_INSTALL', 'true')) {
-                test.install_docker(saltMaster, TEST_TEMPEST_TARGET)
-            }
-            stage('Run OpenStack tests') {
-                test.runTempestTests(saltMaster, TEST_TEMPEST_IMAGE, TEST_TEMPEST_TARGET, TEST_TEMPEST_PATTERN)
+                stage('Install OpenStack compute') {
+                    orchestrate.installOpenstackCompute(venvPepper)
+
+                    if (common.checkContains('STACK_INSTALL', 'contrail')) {
+                        orchestrate.installContrailCompute(venvPepper)
+                    }
+                }
+
             }
 
-            stage('Copy Tempest results to config node') {
-                test.copyTempestResults(saltMaster, TEST_TEMPEST_TARGET)
+            // install ceph
+            if (common.checkContains('STACK_INSTALL', 'ceph')) {
+                stage('Install Ceph MONs') {
+                    orchestrate.installCephMon(venvPepper)
+                }
+
+                stage('Install Ceph OSDs') {
+                    orchestrate.installCephOsd(venvPepper)
+                }
+
+
+                stage('Install Ceph clients') {
+                    orchestrate.installCephClient(venvPepper)
+                }
+
+                stage('Connect Ceph') {
+                    orchestrate.connectCeph(venvPepper)
+                }
             }
 
-            stage('Archive rally artifacts') {
-                test.archiveRallyArtifacts(saltMaster, TEST_TEMPEST_TARGET)
-            }
-        }
-
-
-        if (common.checkContains('STACK_TEST', 'ceph')) {
-            stage('Run infra tests') {
-                sleep(120)
-                def cmd = "apt-get install -y python-pip && pip install -r /usr/share/salt-formulas/env/ceph/files/testinfra/requirements.txt && python -m pytest --junitxml=/root/report.xml /usr/share/salt-formulas/env/ceph/files/testinfra/"
-                salt.cmdRun(saltMaster, 'I@salt:master', cmd, false)
-                writeFile(file: 'report.xml', text: salt.getFileContent(saltMaster, 'I@salt:master', '/root/report.xml'))
-                junit(keepLongStdio: true, testResults: 'report.xml')
-            }
-        }
-
-
-        stage('Finalize') {
-            if (common.checkContains('STACK_INSTALL', 'finalize')) {
-                salt.runSaltProcessStep(saltMaster, '*', 'state.apply', [], null, true)
+            if (common.checkContains('STACK_INSTALL', 'oss')) {
+              stage('Install Oss infra') {
+                orchestrate.installOssInfra(venvPepper)
+              }
             }
 
-            outputsPretty = common.prettify(outputs)
-            print(outputsPretty)
-            writeFile(file: 'outputs.json', text: outputsPretty)
-            archiveArtifacts(artifacts: 'outputs.json')
-        }
-
-    } catch (Throwable e) {
-        currentBuild.result = 'FAILURE'
-        throw e
-    } finally {
-
-
-        //
-        // Clean
-        //
-
-        if (common.validInputParam('STACK_NAME')) {
-            // send notification
-            common.sendNotification(currentBuild.result, STACK_NAME, ["slack"])
-        }
-
-        if (common.validInputParam('STACK_DELETE') && STACK_DELETE.toBoolean() == true) {
-            stage('Trigger cleanup job') {
-                common.errorMsg('Stack cleanup job triggered')
-                build(job: STACK_CLEANUP_JOB, parameters: [
-                    [$class: 'StringParameterValue', name: 'STACK_NAME', value: STACK_NAME],
-                    [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_URL', value: OPENSTACK_API_URL],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_CREDENTIALS', value: OPENSTACK_API_CREDENTIALS],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_DOMAIN', value: OPENSTACK_API_PROJECT_DOMAIN],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_ID', value: OPENSTACK_API_PROJECT_ID],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_USER_DOMAIN', value: OPENSTACK_API_USER_DOMAIN],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_CLIENT', value: OPENSTACK_API_CLIENT],
-                    [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION]
-                ])
+            if (common.checkContains('STACK_INSTALL', 'cicd')) {
+                stage('Install Cicd') {
+                    orchestrate.installInfra(venvPepper)
+                    orchestrate.installDockerSwarm(venvPepper)
+                    orchestrate.installCicd(venvPepper)
+                }
             }
-        } else {
-            if (currentBuild.result == 'FAILURE') {
-                common.errorMsg("Deploy job FAILED and was not deleted. Please fix the problem and delete stack on you own.")
 
-                if (common.validInputParam('SALT_MASTER_URL')) {
-                    common.errorMsg("Salt master URL: ${SALT_MASTER_URL}")
+            if (common.checkContains('STACK_INSTALL', 'sl-legacy')) {
+                stage('Install StackLight v1') {
+                    orchestrate.installStacklightv1Control(venvPepper)
+                    orchestrate.installStacklightv1Client(venvPepper)
+                }
+            }
+
+            if (common.checkContains('STACK_INSTALL', 'stacklight')) {
+                stage('Install StackLight') {
+                    orchestrate.installDockerSwarm(venvPepper)
+                    orchestrate.installStacklight(venvPepper)
+                }
+            }
+
+            if (common.checkContains('STACK_INSTALL', 'oss')) {
+              stage('Install OSS') {
+                if (!common.checkContains('STACK_INSTALL', 'stacklight')) {
+                  // In case if StackLightv2 enabled containers already started
+                  orchestrate.installDockerSwarm(venvPepper)
+                  salt.enforceState(venvPepper, 'I@docker:swarm:role:master and I@devops_portal:config', 'docker.client', true)
+                }
+                orchestrate.installOss(venvPepper)
+              }
+            }
+
+            //
+            // Test
+            //
+            def artifacts_dir = '_artifacts/'
+
+            if (common.checkContains('STACK_TEST', 'k8s')) {
+                stage('Run k8s conformance e2e tests') {
+                    def image = TEST_K8S_CONFORMANCE_IMAGE
+                    def output_file = image.replaceAll('/', '-') + '.output'
+                    def target = 'ctl01*'
+                    def conformance_output_file = 'conformance_test.tar'
+
+                    // run image
+                    test.runConformanceTests(venvPepper, target, TEST_K8S_API_SERVER, image)
+
+                    // collect output
+                    sh "mkdir -p ${artifacts_dir}"
+                    file_content = salt.getFileContent(venvPepper, target, '/tmp/' + output_file)
+                    writeFile file: "${artifacts_dir}${output_file}", text: file_content
+                    sh "cat ${artifacts_dir}${output_file}"
+
+                    // collect artifacts
+                    archiveArtifacts artifacts: "${artifacts_dir}${output_file}"
+
+                    // Copy test results
+                    test.CopyConformanceResults(venvPepper, target, artifacts_dir, conformance_output_file)
+                }
+            }
+
+            if (common.checkContains('STACK_TEST', 'openstack')) {
+                if (common.checkContains('TEST_DOCKER_INSTALL', 'true')) {
+                    test.install_docker(venvPepper, TEST_TEMPEST_TARGET)
+                }
+                stage('Run OpenStack tests') {
+                    test.runTempestTests(venvPepper, TEST_TEMPEST_IMAGE, TEST_TEMPEST_TARGET, TEST_TEMPEST_PATTERN)
+                }
+
+                stage('Copy Tempest results to config node') {
+                    test.copyTempestResults(venvPepper, TEST_TEMPEST_TARGET)
+                }
+
+                stage('Archive rally artifacts') {
+                    test.archiveRallyArtifacts(venvPepper, TEST_TEMPEST_TARGET)
+                }
+
+                if (common.validInputParam('TESTRAIL_REPORT') && TESTRAIL_REPORT.toBoolean()) {
+                    stage('Upload test results to TestRail') {
+                        def date = sh(script: 'date +%Y-%m-%d', returnStdout: true).trim()
+                        def plan = TESTRAIL_PLAN ?: "[${TESTRAIL_MILESTONE}]System-Devcloud-${date}"
+                        def group = TESTRAIL_GROUP ?: STACK_TEMPLATE
+
+                        salt.cmdRun(venvPepper, TEST_TEMPEST_TARGET, "cd /root/rally_reports && cp \$(ls -t *xml | head -n1) report.xml")
+                        test.uploadResultsTestrail("/root/rally_reports/report.xml",
+                                TESTRAIL_REPORTER_IMAGE, group, TESTRAIL_QA_CREDENTIALS,
+                                plan, TESTRAIL_MILESTONE, TESTRAIL_SUITE)
+                    }
+                }
+            }
+
+
+            if (common.checkContains('STACK_TEST', 'ceph')) {
+                stage('Run infra tests') {
+                    sleep(120)
+                    def cmd = "apt-get install -y python-pip && pip install -r /usr/share/salt-formulas/env/ceph/files/testinfra/requirements.txt && python -m pytest --junitxml=/root/report.xml /usr/share/salt-formulas/env/ceph/files/testinfra/"
+                    salt.cmdRun(venvPepper, 'I@salt:master', cmd, false)
+                    writeFile(file: 'report.xml', text: salt.getFileContent(venvPepper, 'I@salt:master', '/root/report.xml'))
+                    junit(keepLongStdio: true, testResults: 'report.xml')
+                }
+            }
+
+            if (common.checkContains('STACK_TEST', 'opencontrail')) {
+                stage('Run opencontrail tests') {
+                    def opencontrail_tests_dir = "/opt/opencontrail_test/fuel-plugin-contrail/plugin_test/vapor/"
+                    def report_dir = "/opt/opencontrail-test-report/"
+                    def cmd = ". ${opencontrail_tests_dir}exports.sh && " +
+                              "cd ${opencontrail_tests_dir} && " +
+                              "py.test --junit-xml=${report_dir}report.xml" +
+                              " --html=${report_dir}report.html -v vapor/tests/ -k 'not destructive' "
+
+                    salt.runSaltProcessStep(venvPepper, 'cfg*', 'saltutil.refresh_pillar', [], null, true)
+                    salt.enforceState(venvPepper, 'I@opencontrail:test' , 'opencontrail.test' , true)
+
+                    salt.cmdRun(venvPepper, 'I@opencontrail:test', cmd, false)
+
+                    writeFile(file: 'report.xml', text: salt.getFileContent(venvPepper,
+                              'I@opencontrail:test', "${report_dir}report.xml"))
+                    junit(keepLongStdio: true, testResults: 'report.xml')
+                }
+            }
+
+
+            stage('Finalize') {
+                if (common.checkContains('STACK_INSTALL', 'finalize')) {
+                    def gluster_compound = 'I@glusterfs:server'
+                    def salt_ca_compound = 'I@salt:minion:ca:salt_master_ca'
+                    // Enforce highstate asynchronous only on the nodes which are not glusterfs servers
+                    salt.enforceHighstate(venvPepper, '* and not ' + gluster_compound + ' and not ' + salt_ca_compound)
+                    // Iterate over nonempty set of gluster servers and apply highstates one by one
+                    // TODO: switch to batch once salt 2017.7+ would be used
+                    def saltcaMinions = salt.getMinionsSorted(venvPepper, salt_ca_compound)
+                    if ( !saltcaMinions.isEmpty() ) {
+                        for ( target in saltcaMinions ) {
+                            salt.enforceHighstate(venvPepper, target)
+                        }
+                    }
+                    def glusterMinions = salt.getMinionsSorted(venvPepper, gluster_compound)
+                    if ( !glusterMinions.isEmpty() ) {
+                        for ( target in glusterMinions ) {
+                            salt.enforceHighstate(venvPepper, target)
+                        }
+                    }
+                }
+
+                outputsPretty = common.prettify(outputs)
+                print(outputsPretty)
+                writeFile(file: 'outputs.json', text: outputsPretty)
+                archiveArtifacts(artifacts: 'outputs.json')
+            }
+
+        } catch (Throwable e) {
+            currentBuild.result = 'FAILURE'
+            throw e
+        } finally {
+
+
+            //
+            // Clean
+            //
+
+            if (common.validInputParam('STACK_NAME')) {
+                // send notification
+                common.sendNotification(currentBuild.result, STACK_NAME, ["slack"])
+            }
+
+            if (common.validInputParam('STACK_DELETE') && STACK_DELETE.toBoolean() == true) {
+                stage('Trigger cleanup job') {
+                    common.errorMsg('Stack cleanup job triggered')
+                    build(job: STACK_CLEANUP_JOB, parameters: [
+                        [$class: 'StringParameterValue', name: 'STACK_NAME', value: STACK_NAME],
+                        [$class: 'StringParameterValue', name: 'STACK_TYPE', value: STACK_TYPE],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_URL', value: OPENSTACK_API_URL],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_CREDENTIALS', value: OPENSTACK_API_CREDENTIALS],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT', value: OPENSTACK_API_PROJECT],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_DOMAIN', value: OPENSTACK_API_PROJECT_DOMAIN],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_PROJECT_ID', value: OPENSTACK_API_PROJECT_ID],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_USER_DOMAIN', value: OPENSTACK_API_USER_DOMAIN],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_CLIENT', value: OPENSTACK_API_CLIENT],
+                        [$class: 'StringParameterValue', name: 'OPENSTACK_API_VERSION', value: OPENSTACK_API_VERSION]
+                    ])
+                }
+            } else {
+                if (currentBuild.result == 'FAILURE') {
+                    common.errorMsg("Deploy job FAILED and was not deleted. Please fix the problem and delete stack on you own.")
+
+                    if (common.validInputParam('SALT_MASTER_URL')) {
+                        common.errorMsg("Salt master URL: ${SALT_MASTER_URL}")
+                    }
                 }
             }
         }
