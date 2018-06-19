@@ -426,7 +426,7 @@ timeout(time: 12, unit: 'HOURS') {
                     if (common.checkContains('STACK_INSTALL', 'contrail')) {
                         orchestrate.installContrailNetwork(venvPepper, extra_tgt)
                     } else if (common.checkContains('STACK_INSTALL', 'ovs')) {
-                        orchestrate.installOpenstackNetwork(venvPepperi, extra_tgt)
+                        orchestrate.installOpenstackNetwork(venvPepper, extra_tgt)
                     }
 
                     // Wait for network to come up, 150s should be enough
