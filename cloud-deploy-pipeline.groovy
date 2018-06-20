@@ -350,8 +350,8 @@ timeout(time: 12, unit: 'HOURS') {
                     }
 
                     // ensure certificates are generated properly
-                    salt.runSaltProcessStep(venvPepper, '* ${extra_tgt}', 'saltutil.refresh_pillar', [], null, true)
-                    salt.enforceState(venvPepper, '* ${extra_tgt}', ['salt.minion.cert'], true)
+                    salt.runSaltProcessStep(venvPepper, "* ${extra_tgt}", 'saltutil.refresh_pillar', [], null, true)
+                    salt.enforceState(venvPepper, "* ${extra_tgt}", ['salt.minion.cert'], true)
 
                     orchestrate.installKubernetesInfra(venvPepper, extra_tgt)
                 }
