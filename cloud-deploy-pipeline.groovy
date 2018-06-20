@@ -310,7 +310,7 @@ timeout(time: 12, unit: 'HOURS') {
             // Set up override params
             if (common.validInputParam('SALT_OVERRIDES')) {
                 stage('Set Salt overrides') {
-                    salt.setSaltOverrides(venvPepper,  SALT_OVERRIDES, extra_tgt)
+                    salt.setSaltOverrides(venvPepper,  SALT_OVERRIDES, '/srv/salt/reclass', extra_tgt)
                 }
             }
 
