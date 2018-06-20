@@ -98,7 +98,7 @@ if (common.validInputParam('SLAVE_NODE')) {
     slave_node = SLAVE_NODE
 }
 
-def extra_tgt
+def extra_tgt = ''
 if (common.validInputParam('EXTRA_TARGET')) {
     extra_tgt = "${EXTRA_TARGET}"
 }
